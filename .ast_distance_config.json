@@ -1,0 +1,22 @@
+{
+  "type": "port",
+  "name": "tree-sitter-kotlin",
+  "source": {
+    "path": "tmp/tree-sitter/src",
+    "lang": "rust"
+  },
+  "target": {
+    "path": "src/commonMain/kotlin/io/github/kotlinmania/treesitter",
+    "lang": "kotlin"
+  },
+  "checks": {
+    "deep": true,
+    "missing": true,
+    "todos": true,
+    "lint": true
+  },
+  "reexport_modules": [
+    "mod.rs",
+    "lib.rs"
+  ]
+}
