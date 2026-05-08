@@ -48,7 +48,7 @@ Tree-sitter is a parser generator tool and an incremental parsing library. It ca
 
 ```kotlin
 dependencies {
-    implementation("io.github.kotlinmania:tree-sitter-kotlin:0.1.0-SNAPSHOT")
+    implementation("io.github.kotlinmania:tree-sitter-kotlin:0.1.0")
 }
 ```
 
