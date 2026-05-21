@@ -1,16 +1,23 @@
 import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.OutputStream.nullOutputStream
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.zip.ZipInputStream
+import javax.inject.Inject
 import org.gradle.api.GradleException
 import org.gradle.api.tasks.testing.AbstractTestTask
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
+import org.gradle.internal.os.OperatingSystem
 import org.gradle.kotlin.dsl.support.serviceOf
+import org.gradle.kotlin.dsl.support.useToRun
 import org.gradle.process.ExecOperations
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
+import org.jetbrains.kotlin.gradle.tasks.CInteropProcess
 import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension
 import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec
 import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsRootExtension
@@ -174,6 +181,34 @@ fun installProjectAndroidSdk(execOperations: ExecOperations) {
 val androidSdkExecOperations = serviceOf<ExecOperations>()
 installProjectAndroidSdk(androidSdkExecOperations)
 
+// Vendored upstream tree-sitter C library plus Kotlin/Native cinterop wiring. The
+// tree-sitter runtime is amalgamated in tree-sitter/lib/src/lib.c; per-target builds
+// of libtree-sitter.a feed the cinterop binding declared in
+// src/nativeInterop/cinterop/treesitter.def.
+interface TreesitterExecInjected {
+    @get:Inject val execOps: ExecOperations
+}
+
+val treesitterExecService = objects.newInstance<TreesitterExecInjected>()
+val hostOs: OperatingSystem = OperatingSystem.current()
+val treesitterLibsDir = layout.buildDirectory.get().dir("libs")
+val treesitterVendorDir = layout.projectDirectory.dir("tree-sitter").asFile
+
+inline val File.unixPath: String
+    get() = if (!hostOs.isWindows) path else path.replace("\\", "/")
+
+fun KotlinNativeTarget.treesitter() {
+    compilations.configureEach {
+        cinterops.register("treesitter") {
+            val srcDir = treesitterVendorDir.resolve("lib/src")
+            val includeDir = treesitterVendorDir.resolve("lib/include")
+            includeDirs.allHeaders(srcDir, includeDir)
+            includeDirs.headerFilterOnly(includeDir)
+            extraOpts("-libraryPath", treesitterLibsDir.dir(konanTarget.name))
+        }
+    }
+}
+
 kotlin {
     applyDefaultHierarchyTemplate()
 
@@ -192,45 +227,55 @@ kotlin {
 
     macosArm64 {
         binaries.framework { baseName = "TreeSitter"; xcf.add(this) }
+        treesitter()
     }
     iosArm64 {
         binaries.framework { baseName = "TreeSitter"; xcf.add(this) }
+        treesitter()
     }
     iosSimulatorArm64 {
         binaries.framework { baseName = "TreeSitter"; xcf.add(this) }
+        treesitter()
     }
     iosX64 {
         binaries.framework { baseName = "TreeSitter"; xcf.add(this) }
+        treesitter()
     }
 
     tvosArm64 {
         binaries.framework { baseName = "TreeSitter"; xcf.add(this) }
+        treesitter()
     }
     tvosSimulatorArm64 {
         binaries.framework { baseName = "TreeSitter"; xcf.add(this) }
+        treesitter()
     }
 
     watchosArm32 {
         binaries.framework { baseName = "TreeSitter"; xcf.add(this) }
+        treesitter()
     }
     watchosArm64 {
         binaries.framework { baseName = "TreeSitter"; xcf.add(this) }
+        treesitter()
     }
     watchosDeviceArm64 {
         binaries.framework { baseName = "TreeSitter"; xcf.add(this) }
+        treesitter()
     }
     watchosSimulatorArm64 {
         binaries.framework { baseName = "TreeSitter"; xcf.add(this) }
+        treesitter()
     }
 
-    linuxX64()
-    linuxArm64()
-    mingwX64()
+    linuxX64 { treesitter() }
+    linuxArm64 { treesitter() }
+    mingwX64 { treesitter() }
 
-    androidNativeArm32()
-    androidNativeArm64()
-    androidNativeX86()
-    androidNativeX64()
+    androidNativeArm32 { treesitter() }
+    androidNativeArm64 { treesitter() }
+    androidNativeX86 { treesitter() }
+    androidNativeX64 { treesitter() }
 
     js {
         browser()
@@ -362,7 +407,9 @@ rootProject.extensions.configure<NodeJsRootExtension>("kotlinNodeJs") {
 
 mavenPublishing {
     publishToMavenCentral()
-    signAllPublications()
+    if (project.findProperty("signingInMemoryKey") != null) {
+        signAllPublications()
+    }
 
     coordinates(group.toString(), "tree-sitter-kotlin", version.toString())
 
@@ -456,4 +503,59 @@ val patchWasmWasiNodePreopens = tasks.register("patchWasmWasiNodePreopens") {
 
 tasks.named("wasmWasiNodeTest") {
     dependsOn(patchWasmWasiNodePreopens)
+}
+
+// Compile vendored tree-sitter/lib/src/lib.c into a per-target libtree-sitter.a
+// before each CInteropProcess runs. Uses run_konan clang so the C runtime is
+// cross-compiled with the same Kotlin/Native toolchain as the Kotlin output,
+// then llvm-ar archives the object into the static lib the .def file references.
+@Suppress("DEPRECATION")
+tasks.withType<CInteropProcess>().configureEach {
+    if (name.startsWith("cinteropTest")) return@configureEach
+
+    val runKonan = File(konanHome.get()).resolve("bin")
+        .resolve(if (hostOs.isWindows) "run_konan.bat" else "run_konan").path
+    val libFile = treesitterLibsDir.dir(konanTarget.name).file(
+        "${konanTarget.family.staticPrefix}tree-sitter.${konanTarget.family.staticSuffix}",
+    ).asFile
+    val objectFile = treesitterVendorDir.resolve("lib.o")
+
+    doFirst {
+        libFile.parentFile.mkdirs()
+
+        val argsFile = File.createTempFile("args", null)
+        argsFile.deleteOnExit()
+        argsFile.writer().useToRun {
+            write("-I" + treesitterVendorDir.resolve("lib/src").unixPath + "\n")
+            write("-I" + treesitterVendorDir.resolve("lib/include").unixPath + "\n")
+            write("-DTREE_SITTER_HIDE_SYMBOLS\n")
+            write("-D_DEFAULT_SOURCE\n")
+            write("-D_POSIX_C_SOURCE=200112L\n")
+            write("-fvisibility=hidden\n")
+            write("-std=c11\n")
+            write("-O2\n")
+            write("-g\n")
+            write("-c\n")
+            write("-o\n")
+            write(objectFile.unixPath + "\n")
+            write(treesitterVendorDir.resolve("lib/src/lib.c").unixPath + "\n")
+        }
+
+        treesitterExecService.execOps.exec {
+            executable = runKonan
+            workingDir = treesitterVendorDir
+            standardOutput = nullOutputStream()
+            args("clang", "clang", konanTarget.name, "@" + argsFile.path)
+        }
+
+        treesitterExecService.execOps.exec {
+            executable = runKonan
+            workingDir = treesitterVendorDir
+            standardOutput = nullOutputStream()
+            args("llvm", "llvm-ar", "rcs", libFile.path, objectFile.path)
+        }
+    }
+
+    inputs.file(treesitterVendorDir.resolve("lib/src/lib.c"))
+    outputs.file(libFile)
 }
