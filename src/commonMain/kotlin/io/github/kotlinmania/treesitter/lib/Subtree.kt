@@ -303,3 +303,29 @@ fun tsSubtreeIsFragile(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> false
     is Subtree.Heap -> self.fragileLeft || self.fragileRight
 }
+
+/**
+ * Walk down the subtree looking for the deepest descendant that carries external-scanner
+ * state. Returns null if [tree] has no external tokens at all. Mirrors the recursive walk in
+ * `ts_subtree_last_external_token` (lib/src/subtree.c).
+ */
+fun tsSubtreeLastExternalToken(tree: Subtree): Subtree? {
+    if (!tsSubtreeHasExternalTokens(tree)) return null
+    var current: Subtree = tree
+    while (current is Subtree.Heap && current.childCount > 0u) {
+        var found: Subtree? = null
+        val children = tsSubtreeChildren(current)
+        var i = children.size - 1
+        while (i >= 0) {
+            val child = children[i]
+            if (tsSubtreeHasExternalTokens(child)) {
+                found = child
+                break
+            }
+            i--
+        }
+        if (found == null) return current
+        current = found
+    }
+    return current
+}
