@@ -34,8 +34,8 @@ static inline bool kts_is_valid_predicate_char(int ch) {
     return _isalnum(ch) || ch == '_' || ch == '-' || ch == '.' || ch == '?' || ch == '!';
 }
 
-static inline uintptr_t kts_node_id(TSNode node) {
-    return (uintptr_t)node.id;
+static inline uint64_t kts_node_id(TSNode node) {
+    return (uint64_t)(uintptr_t)node.id;
 }
 
 static inline int32_t kts_node_hash(TSNode node) {
@@ -44,8 +44,8 @@ static inline int32_t kts_node_hash(TSNode node) {
     return (int32_t)(id == tree ? id : id ^ tree);
 }
 
-static inline void *kts_malloc(size_t size) {
-    return ts_malloc(size);
+static inline void *kts_malloc(uint64_t size) {
+    return ts_malloc((size_t)size);
 }
 
 static inline void kts_free(void *ptr) {
