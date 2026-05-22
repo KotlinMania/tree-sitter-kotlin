@@ -2,7 +2,7 @@
   "type": "port",
   "name": "tree-sitter-kotlin",
   "source": {
-    "path": "tmp/tree-sitter/src",
+    "path": "tmp/tree-sitter/binding_rust",
     "lang": "rust"
   },
   "target": {

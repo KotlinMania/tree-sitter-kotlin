@@ -1,3 +1,4 @@
+// port-lint: source lib.rs
 package io.github.kotlinmania.treesitter
 
 /** Any error that occurred while instantiating a [Query]. */
