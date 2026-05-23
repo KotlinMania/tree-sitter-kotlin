@@ -55,6 +55,23 @@ val androidSdkManager = projectAndroidSdkDir.resolve(
     },
 )
 val androidSdkInstallMarker = projectAndroidSdkDir.resolve(".install-complete")
+val maxAndroidSdkLicensePrompts = 200
+val requiredAndroidSdkPackageDirs = listOf(
+    projectAndroidSdkDir.resolve("platform-tools"),
+    projectAndroidSdkDir.resolve("platforms/android-$projectCompileSdk"),
+    projectAndroidSdkDir.resolve("build-tools/$projectAndroidBuildTools"),
+)
+
+fun isProjectAndroidSdkInstalled(): Boolean {
+    val installed =
+        androidSdkInstallMarker.exists() &&
+            androidSdkManager.exists() &&
+            requiredAndroidSdkPackageDirs.all { it.exists() }
+    if (!installed && androidSdkInstallMarker.exists()) {
+        androidSdkInstallMarker.delete()
+    }
+    return installed
+}
 
 fun writeAndroidLocalProperties() {
     val sdkDirPropertyValue = projectAndroidSdkDir.absolutePath.replace("\\", "/")
@@ -119,7 +136,7 @@ fun downloadAndroidCommandLineTools() {
 }
 
 fun installProjectAndroidSdk(execOperations: ExecOperations) {
-    if (androidSdkInstallMarker.exists() && androidSdkManager.exists()) {
+    if (isProjectAndroidSdkInstalled()) {
         writeAndroidLocalProperties()
         println("setup-android-sdk: SDK already installed at $projectAndroidSdkDir")
         return
@@ -130,21 +147,21 @@ fun installProjectAndroidSdk(execOperations: ExecOperations) {
     }
 
     println("setup-android-sdk: accepting licenses")
-    val licenseAnswers = "y\n".repeat(200).toByteArray(Charsets.UTF_8)
-    val licenseResult = execOperations.exec {
+    val licenseAnswers = "y\n".repeat(maxAndroidSdkLicensePrompts).toByteArray(Charsets.UTF_8)
+    val licenseExecResult = execOperations.exec {
         commandLine(sdkManagerCommand("--sdk_root=${projectAndroidSdkDir.absolutePath}", "--licenses"))
         standardInput = ByteArrayInputStream(licenseAnswers)
         isIgnoreExitValue = true
     }
-    if (licenseResult.exitValue != 0) {
-        throw GradleException("Android SDK license acceptance failed with exit code ${licenseResult.exitValue}")
+    if (licenseExecResult.exitValue != 0) {
+        throw GradleException("Android SDK license acceptance failed with exit code ${licenseExecResult.exitValue}")
     }
 
     println("setup-android-sdk: installing platform-tools, android-$projectCompileSdk, build-tools;$projectAndroidBuildTools")
     val installLog = projectAndroidSdkDir.resolve("sdkmanager-install.log")
     installLog.parentFile.mkdirs()
     installLog.outputStream().use { output ->
-        val installResult = execOperations.exec {
+        val installExecResult = execOperations.exec {
             commandLine(
                 sdkManagerCommand(
                     "--sdk_root=${projectAndroidSdkDir.absolutePath}",
@@ -157,9 +174,9 @@ fun installProjectAndroidSdk(execOperations: ExecOperations) {
             errorOutput = output
             isIgnoreExitValue = true
         }
-        if (installResult.exitValue != 0) {
+        if (installExecResult.exitValue != 0) {
             throw GradleException(
-                "Android SDK package install failed with exit code ${installResult.exitValue}. " +
+                "Android SDK package install failed with exit code ${installExecResult.exitValue}. " +
                     "Install log:\n${installLog.readText()}",
             )
         }
@@ -234,11 +251,19 @@ kotlin {
         treesitter()
     }
     iosSimulatorArm64 {
-        binaries.framework { baseName = "TreeSitter"; xcf.add(this) }
+        binaries.framework {
+            baseName = "TreeSitter"
+            isStatic = true
+            xcf.add(this)
+        }
         treesitter()
     }
     iosX64 {
-        binaries.framework { baseName = "TreeSitter"; xcf.add(this) }
+        binaries.framework {
+            baseName = "TreeSitter"
+            isStatic = true
+            xcf.add(this)
+        }
         treesitter()
     }
 
@@ -469,80 +494,6 @@ tasks.register("test") {
     dependsOn(defaultTestTasks.mapNotNull { taskName -> tasks.findByName(taskName) })
 }
 
-// Explicit audit contract: the default `build` task must compile/link every
-// configured Kotlin target, including non-host native test binaries and the
-// XCFramework assemblies. Without this wiring, `./gradlew build` reports
-// success while silently skipping Apple device-target test links, Android
-// Native binaries, linuxArm64, and the XCFramework outputs.
-val fullTargetBuildTaskNames = setOf(
-    "compileAndroidMain",
-    "compileAndroidHostTest",
-    "compileAndroidDeviceTest",
-    "assembleAndroidMain",
-    "assembleUnitTest",
-    "assembleAndroidTest",
-    "jvmMainClasses",
-    "jvmTestClasses",
-    "jsMainClasses",
-    "jsTestClasses",
-    "wasmJsMainClasses",
-    "wasmJsTestClasses",
-    "wasmWasiMainClasses",
-    "wasmWasiTestClasses",
-    "androidNativeArm32Binaries",
-    "androidNativeArm32TestBinaries",
-    "androidNativeArm64Binaries",
-    "androidNativeArm64TestBinaries",
-    "androidNativeX64Binaries",
-    "androidNativeX64TestBinaries",
-    "androidNativeX86Binaries",
-    "androidNativeX86TestBinaries",
-    "iosArm64Binaries",
-    "iosArm64TestBinaries",
-    "iosSimulatorArm64Binaries",
-    "iosSimulatorArm64TestBinaries",
-    "iosX64Binaries",
-    "iosX64TestBinaries",
-    "linuxArm64Binaries",
-    "linuxArm64TestBinaries",
-    "linuxX64Binaries",
-    "linuxX64TestBinaries",
-    "macosArm64Binaries",
-    "macosArm64TestBinaries",
-    "mingwX64Binaries",
-    "mingwX64TestBinaries",
-    "tvosArm64Binaries",
-    "tvosArm64TestBinaries",
-    "tvosSimulatorArm64Binaries",
-    "tvosSimulatorArm64TestBinaries",
-    "watchosArm32Binaries",
-    "watchosArm32TestBinaries",
-    "watchosArm64Binaries",
-    "watchosArm64TestBinaries",
-    "watchosDeviceArm64Binaries",
-    "watchosDeviceArm64TestBinaries",
-    "watchosSimulatorArm64Binaries",
-    "watchosSimulatorArm64TestBinaries",
-    "assembleTreeSitterXCFramework",
-)
-
-tasks.named("build") {
-    dependsOn(fullTargetBuildTaskNames)
-}
-
-afterEvaluate {
-    tasks.named("build") {
-        dependsOn(
-            tasks.matching {
-                name.endsWith("MainClasses") ||
-                    name.endsWith("TestClasses") ||
-                    name.endsWith("Binaries") ||
-                    name.endsWith("XCFramework")
-            },
-        )
-    }
-}
-
 // The generated Wasm-WASI Node test runner cannot see the filesystem unless
 // the project directory is preopened. Patch the runner before wasmWasiNodeTest.
 val patchWasmWasiNodePreopens = tasks.register("patchWasmWasiNodePreopens") {
@@ -575,6 +526,190 @@ val patchWasmWasiNodePreopens = tasks.register("patchWasmWasiNodePreopens") {
 
 tasks.named("wasmWasiNodeTest") {
     dependsOn(patchWasmWasiNodePreopens)
+}
+
+val xcodeSwiftExportEnvironmentNames = listOf(
+    "SDK_NAME",
+    "CONFIGURATION",
+    "TARGET_BUILD_DIR",
+    "BUILT_PRODUCTS_DIR",
+    "ARCHS",
+    "FRAMEWORKS_FOLDER_PATH",
+    "DEPLOYMENT_TARGET_SETTING_NAME",
+)
+
+fun hasXcodeSwiftExportEnvironment(): Boolean {
+    if (!xcodeSwiftExportEnvironmentNames.all { !System.getenv(it).isNullOrBlank() }) {
+        return false
+    }
+
+    val deploymentTargetSettingName = System.getenv("DEPLOYMENT_TARGET_SETTING_NAME")
+    return !System.getenv(deploymentTargetSettingName).isNullOrBlank()
+}
+
+val swiftExportTaskDirectlyRequested =
+    gradle.startParameter.taskNames.any { it == "embedSwiftExportForXcode" || it.endsWith(":embedSwiftExportForXcode") }
+
+tasks.matching { it.name == "embedSwiftExportForXcode" }.configureEach {
+    onlyIf {
+        val hasXcodeEnvironment = hasXcodeSwiftExportEnvironment()
+        if (!hasXcodeEnvironment && !swiftExportTaskDirectlyRequested) {
+            logger.lifecycle("embedSwiftExportForXcode: skipped because Xcode environment variables are not present")
+        }
+        hasXcodeEnvironment || swiftExportTaskDirectlyRequested
+    }
+}
+
+val fullTargetBuildTasks = listOf(
+    "compileAndroidMain",
+    "compileAndroidHostTest",
+    "compileAndroidDeviceTest",
+    "assembleAndroidMain",
+    "assembleAndroidHostTest",
+    "assembleAndroidDeviceTest",
+    "assembleUnitTest",
+    "assembleAndroidTest",
+    "testAndroidHostTest",
+    "jvmMainClasses",
+    "jvmTestClasses",
+    "jvmTest",
+    "jsMainClasses",
+    "jsTestClasses",
+    "jsBrowserTest",
+    "jsNodeTest",
+    "jsTest",
+    "wasmJsMainClasses",
+    "wasmJsTestClasses",
+    "wasmJsBrowserTest",
+    "wasmJsNodeTest",
+    "wasmJsTest",
+    "wasmWasiMainClasses",
+    "wasmWasiTestClasses",
+    "wasmWasiNodeTest",
+    "wasmWasiTest",
+    "androidNativeArm32Binaries",
+    "androidNativeArm32TestBinaries",
+    "androidNativeArm64Binaries",
+    "androidNativeArm64TestBinaries",
+    "androidNativeX64Binaries",
+    "androidNativeX64TestBinaries",
+    "androidNativeX86Binaries",
+    "androidNativeX86TestBinaries",
+    "iosArm64Binaries",
+    "iosArm64TestBinaries",
+    "iosSimulatorArm64Binaries",
+    "iosSimulatorArm64TestBinaries",
+    "iosX64Binaries",
+    "iosX64TestBinaries",
+    "linuxArm64Binaries",
+    "linuxArm64TestBinaries",
+    "linuxX64Binaries",
+    "linuxX64TestBinaries",
+    "linuxX64Test",
+    "macosArm64Binaries",
+    "macosArm64TestBinaries",
+    "macosArm64Test",
+    "mingwX64Binaries",
+    "mingwX64TestBinaries",
+    "mingwX64Test",
+    "tvosArm64Binaries",
+    "tvosArm64TestBinaries",
+    "tvosSimulatorArm64Binaries",
+    "tvosSimulatorArm64TestBinaries",
+    "watchosArm32Binaries",
+    "watchosArm32TestBinaries",
+    "watchosArm64Binaries",
+    "watchosArm64TestBinaries",
+    "watchosDeviceArm64Binaries",
+    "watchosDeviceArm64TestBinaries",
+    "watchosSimulatorArm64Binaries",
+    "watchosSimulatorArm64TestBinaries",
+    "embedSwiftExportForXcode",
+    "assembleTreeSitterXCFramework",
+    "assembleTreeSitterDebugXCFramework",
+    "assembleTreeSitterReleaseXCFramework",
+    "assembleDebugIosFatFrameworkForTreeSitterXCFramework",
+    "assembleReleaseIosFatFrameworkForTreeSitterXCFramework",
+    "assembleDebugIosSimulatorFatFrameworkForTreeSitterXCFramework",
+    "assembleReleaseIosSimulatorFatFrameworkForTreeSitterXCFramework",
+    "assembleDebugMacosFatFrameworkForTreeSitterXCFramework",
+    "assembleReleaseMacosFatFrameworkForTreeSitterXCFramework",
+    "assembleDebugTvosFatFrameworkForTreeSitterXCFramework",
+    "assembleReleaseTvosFatFrameworkForTreeSitterXCFramework",
+    "assembleDebugTvosSimulatorFatFrameworkForTreeSitterXCFramework",
+    "assembleReleaseTvosSimulatorFatFrameworkForTreeSitterXCFramework",
+    "assembleDebugWatchosFatFrameworkForTreeSitterXCFramework",
+    "assembleReleaseWatchosFatFrameworkForTreeSitterXCFramework",
+    "assembleDebugWatchosSimulatorFatFrameworkForTreeSitterXCFramework",
+    "assembleReleaseWatchosSimulatorFatFrameworkForTreeSitterXCFramework",
+    "exportCommonSourceSetsMetadataLocationsForMetadataApiElements",
+    "exportRootPublicationCoordinatesForMetadataApiElements",
+    "exportCrossCompilationMetadataForAndroidNativeArm32ApiElements",
+    "exportCrossCompilationMetadataForAndroidNativeArm64ApiElements",
+    "exportCrossCompilationMetadataForAndroidNativeX64ApiElements",
+    "exportCrossCompilationMetadataForAndroidNativeX86ApiElements",
+    "exportCrossCompilationMetadataForIosArm64ApiElements",
+    "exportCrossCompilationMetadataForIosSimulatorArm64ApiElements",
+    "exportCrossCompilationMetadataForIosX64ApiElements",
+    "exportCrossCompilationMetadataForLinuxArm64ApiElements",
+    "exportCrossCompilationMetadataForLinuxX64ApiElements",
+    "exportCrossCompilationMetadataForMacosArm64ApiElements",
+    "exportCrossCompilationMetadataForMingwX64ApiElements",
+    "exportCrossCompilationMetadataForTvosArm64ApiElements",
+    "exportCrossCompilationMetadataForTvosSimulatorArm64ApiElements",
+    "exportCrossCompilationMetadataForWatchosArm32ApiElements",
+    "exportCrossCompilationMetadataForWatchosArm64ApiElements",
+    "exportCrossCompilationMetadataForWatchosDeviceArm64ApiElements",
+    "exportCrossCompilationMetadataForWatchosSimulatorArm64ApiElements",
+    "exportTargetPublicationCoordinatesForAndroidApiElements",
+    "exportTargetPublicationCoordinatesForAndroidNativeArm32ApiElements",
+    "exportTargetPublicationCoordinatesForAndroidNativeArm64ApiElements",
+    "exportTargetPublicationCoordinatesForAndroidNativeX64ApiElements",
+    "exportTargetPublicationCoordinatesForAndroidNativeX86ApiElements",
+    "exportTargetPublicationCoordinatesForAndroidRuntimeElements",
+    "exportTargetPublicationCoordinatesForIosArm64ApiElements",
+    "exportTargetPublicationCoordinatesForIosSimulatorArm64ApiElements",
+    "exportTargetPublicationCoordinatesForIosX64ApiElements",
+    "exportTargetPublicationCoordinatesForJsApiElements",
+    "exportTargetPublicationCoordinatesForJsRuntimeElements",
+    "exportTargetPublicationCoordinatesForJvmApiElements",
+    "exportTargetPublicationCoordinatesForJvmRuntimeElements",
+    "exportTargetPublicationCoordinatesForLinuxArm64ApiElements",
+    "exportTargetPublicationCoordinatesForLinuxX64ApiElements",
+    "exportTargetPublicationCoordinatesForMacosArm64ApiElements",
+    "exportTargetPublicationCoordinatesForMingwX64ApiElements",
+    "exportTargetPublicationCoordinatesForTvosArm64ApiElements",
+    "exportTargetPublicationCoordinatesForTvosSimulatorArm64ApiElements",
+    "exportTargetPublicationCoordinatesForWasmJsApiElements",
+    "exportTargetPublicationCoordinatesForWasmJsRuntimeElements",
+    "exportTargetPublicationCoordinatesForWasmWasiApiElements",
+    "exportTargetPublicationCoordinatesForWasmWasiRuntimeElements",
+    "exportTargetPublicationCoordinatesForWatchosArm32ApiElements",
+    "exportTargetPublicationCoordinatesForWatchosArm64ApiElements",
+    "exportTargetPublicationCoordinatesForWatchosDeviceArm64ApiElements",
+    "exportTargetPublicationCoordinatesForWatchosSimulatorArm64ApiElements",
+)
+
+tasks.named("build") {
+    dependsOn(fullTargetBuildTasks)
+}
+
+afterEvaluate {
+    tasks.named("build") {
+        dependsOn(
+            tasks.matching {
+                name.endsWith("MainClasses") ||
+                    name.endsWith("TestClasses") ||
+                    name.endsWith("Binaries") ||
+                    name.endsWith("XCFramework") ||
+                    name == "embedSwiftExportForXcode" ||
+                    name.startsWith("exportCommonSourceSetsMetadataLocationsFor") ||
+                    name.startsWith("exportRootPublicationCoordinatesFor") ||
+                    name.startsWith("exportCrossCompilationMetadataFor") ||
+                    name.startsWith("exportTargetPublicationCoordinatesFor")
+            },
+        )
+    }
 }
 
 // Compile vendored tree-sitter/lib/src/lib.c into a per-target libtree-sitter.a
