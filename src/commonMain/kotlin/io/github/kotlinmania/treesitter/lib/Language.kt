@@ -1,4 +1,4 @@
-// port-lint: source lib/src/language.h
+// port-lint: source lib/src/language.c
 package io.github.kotlinmania.treesitter.lib
 
 /**
@@ -120,6 +120,184 @@ fun tsLanguageFieldMap(self: TSLanguage, productionId: UInt): List<TSFieldMapEnt
  * doesn't. Matches the C `ts_language_aliases_for_symbol`'s pointer-pair output shape with a
  * Kotlin list return so callers don't carry start/end pointers around.
  */
+fun tsLanguageCopy(self: TSLanguage?): TSLanguage? = self
+
+fun tsLanguageSymbolCount(self: TSLanguage): UInt = self.symbolCount + self.aliasCount
+
+fun tsLanguageStateCount(self: TSLanguage): UInt = self.stateCount
+
+fun tsLanguageSupertypes(self: TSLanguage): UShortArray =
+    if (self.abiVersion >= LANGUAGE_VERSION_WITH_RESERVED_WORDS) self.supertypeSymbols
+    else UShortArray(0)
+
+fun tsLanguageSubtypes(self: TSLanguage, supertype: TSSymbol): UShortArray {
+    if (self.abiVersion < LANGUAGE_VERSION_WITH_RESERVED_WORDS ||
+        !tsLanguageSymbolMetadata(self, supertype).supertype
+    ) {
+        return UShortArray(0)
+    }
+    val slice = self.supertypeMapSlices[supertype.toInt()]
+    val from = slice.index.toInt()
+    val length = slice.length.toInt()
+    return UShortArray(length) { idx -> self.supertypeMapEntries[from + idx] }
+}
+
+fun tsLanguageVersion(self: TSLanguage): UInt = self.abiVersion
+
+fun tsLanguageAbiVersion(self: TSLanguage): UInt = self.abiVersion
+
+fun tsLanguageMetadataOf(self: TSLanguage): TSLanguageMetadata? =
+    if (self.abiVersion >= LANGUAGE_VERSION_WITH_RESERVED_WORDS) self.metadata else null
+
+fun tsLanguageName(self: TSLanguage): String? =
+    if (self.abiVersion >= LANGUAGE_VERSION_WITH_RESERVED_WORDS) self.name else null
+
+fun tsLanguageFieldCount(self: TSLanguage): UInt = self.fieldCount
+
+fun tsLanguageTableEntry(self: TSLanguage, state: TSStateId, symbol: TSSymbol): TableEntry =
+    if (symbol == TS_BUILTIN_SYM_ERROR || symbol == TS_BUILTIN_SYM_ERROR_REPEAT) {
+        TableEntry(actions = emptyList(), actionCount = 0u, isReusable = false)
+    } else {
+        check(symbol < self.tokenCount.toUShort()) { "symbol $symbol out of range for tokenCount ${self.tokenCount}" }
+        val actionIndex = tsLanguageLookup(self, state, symbol).toInt()
+        val header = self.parseActions[actionIndex] as TSParseActionEntry.Header
+        val actions = mutableListOf<TSParseAction>()
+        for (i in 0 until header.count.toInt()) {
+            val entry = self.parseActions[actionIndex + 1 + i] as TSParseActionEntry.Action
+            actions.add(entry.action)
+        }
+        TableEntry(actions = actions, actionCount = header.count.toUInt(), isReusable = header.reusable)
+    }
+
+fun tsLanguageLexModeForState(self: TSLanguage, state: TSStateId): TSLexerMode {
+    return self.lexModes[state.toInt() and 0xFFFF]
+}
+
+fun tsLanguageIsReservedWord(self: TSLanguage, state: TSStateId, symbol: TSSymbol): Boolean {
+    val lexMode = tsLanguageLexModeForState(self, state)
+    if (lexMode.reservedWordSetId > 0u) {
+        val maxSize = self.maxReservedWordSetSize.toInt()
+        val start = lexMode.reservedWordSetId.toInt() * maxSize
+        val end = start + maxSize
+        for (i in start until end) {
+            val word = self.reservedWords[i]
+            if (word == symbol) return true
+            if (word == 0.toUShort()) break
+        }
+    }
+    return false
+}
+
+fun tsLanguageSymbolMetadata(self: TSLanguage, symbol: TSSymbol): TSSymbolMetadata = when (symbol) {
+    TS_BUILTIN_SYM_ERROR -> TSSymbolMetadata(visible = true, named = true, supertype = false)
+    TS_BUILTIN_SYM_ERROR_REPEAT -> TSSymbolMetadata(visible = false, named = false, supertype = false)
+    else -> self.symbolMetadata[symbol.toInt() and 0xFFFF]
+}
+
+fun tsLanguagePublicSymbol(self: TSLanguage, symbol: TSSymbol): TSSymbol =
+    if (symbol == TS_BUILTIN_SYM_ERROR) symbol
+    else self.publicSymbolMap[symbol.toInt() and 0xFFFF]
+
+fun tsLanguageNextState(self: TSLanguage, state: TSStateId, symbol: TSSymbol): TSStateId {
+    if (symbol == TS_BUILTIN_SYM_ERROR || symbol == TS_BUILTIN_SYM_ERROR_REPEAT) return 0u
+    if (symbol < self.tokenCount.toUShort()) {
+        val entry = tsLanguageTableEntry(self, state, symbol)
+        if (entry.actionCount > 0u) {
+            val action = entry.actions.last()
+            if (action is TSParseAction.Shift) {
+                return if (action.extra) state else action.state
+            }
+        }
+        return 0u
+    }
+    return tsLanguageLookup(self, state, symbol)
+}
+
+fun tsLanguageSymbolName(self: TSLanguage, symbol: TSSymbol): String? = when {
+    symbol == TS_BUILTIN_SYM_ERROR -> "ERROR"
+    symbol == TS_BUILTIN_SYM_ERROR_REPEAT -> "_ERROR"
+    symbol < tsLanguageSymbolCount(self).toUShort() -> self.symbolNames[symbol.toInt() and 0xFFFF]
+    else -> null
+}
+
+fun tsLanguageSymbolForName(self: TSLanguage, name: String, isNamed: Boolean): TSSymbol {
+    if (isNamed && name == "ERROR") return TS_BUILTIN_SYM_ERROR
+    val count = tsLanguageSymbolCount(self).toInt()
+    for (i in 0 until count) {
+        val metadata = tsLanguageSymbolMetadata(self, i.toUShort())
+        if ((!metadata.visible && !metadata.supertype) || metadata.named != isNamed) continue
+        if (self.symbolNames[i] == name) {
+            return self.publicSymbolMap[i]
+        }
+    }
+    return 0u
+}
+
+fun tsLanguageSymbolType(self: TSLanguage, symbol: TSSymbol): TSSymbolType {
+    val metadata = tsLanguageSymbolMetadata(self, symbol)
+    return when {
+        metadata.named && metadata.visible -> TSSymbolType.Regular
+        metadata.visible -> TSSymbolType.Anonymous
+        metadata.supertype -> TSSymbolType.Supertype
+        else -> TSSymbolType.Auxiliary
+    }
+}
+
+fun tsLanguageFieldNameForId(self: TSLanguage, id: TSFieldId): String? {
+    val count = tsLanguageFieldCount(self)
+    return if (count > 0u && id <= count.toUShort()) {
+        self.fieldNames[id.toInt() and 0xFFFF]
+    } else {
+        null
+    }
+}
+
+fun tsLanguageFieldIdForName(self: TSLanguage, name: String): TSFieldId {
+    val count = tsLanguageFieldCount(self).toInt()
+    for (i in 1..count) {
+        if (self.fieldNames[i] == name) return i.toUShort()
+    }
+    return 0u
+}
+
+fun tsLanguageLookaheads(self: TSLanguage, state: TSStateId): LookaheadIterator {
+    val stateValue = state.toInt() and 0xFFFF
+    val isSmallState = stateValue >= self.largeStateCount.toInt()
+    return if (isSmallState) {
+        val index = self.smallParseTableMap[stateValue - self.largeStateCount.toInt()].toInt()
+        val groupCount = self.smallParseTable[index]
+        LookaheadIterator(
+            language = self,
+            dataIndex = index + 1,
+            groupEnd = index + 2,
+            state = state,
+            tableValue = 0u,
+            sectionIndex = 0u,
+            groupCount = groupCount,
+            isSmallState = true,
+            actions = emptyList(),
+            symbol = UShort.MAX_VALUE,
+            nextState = 0u,
+            actionCount = 0u,
+        )
+    } else {
+        LookaheadIterator(
+            language = self,
+            dataIndex = stateValue * self.symbolCount.toInt() - 1,
+            groupEnd = -1,
+            state = state,
+            tableValue = 0u,
+            sectionIndex = 0u,
+            groupCount = 0u,
+            isSmallState = false,
+            actions = emptyList(),
+            symbol = UShort.MAX_VALUE,
+            nextState = 0u,
+            actionCount = 0u,
+        )
+    }
+}
+
 fun tsLanguageAliasesForSymbol(self: TSLanguage, originalSymbol: TSSymbol): List<TSSymbol> {
     val defaultSlice = listOf(self.publicSymbolMap[originalSymbol.toInt() and 0xFFFF])
     var idx = 0
