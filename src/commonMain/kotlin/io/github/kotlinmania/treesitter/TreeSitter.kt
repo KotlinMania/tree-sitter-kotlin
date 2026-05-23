@@ -1,3 +1,4 @@
+// port-lint: source lib.rs
 @file:kotlin.jvm.JvmName("KTreeSitter")
 
 package io.github.kotlinmania.treesitter

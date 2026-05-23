@@ -1,3 +1,4 @@
+// port-lint: source lib.rs
 package io.github.kotlinmania.treesitter
 
 /** A single node within a [syntax tree][Tree]. */
