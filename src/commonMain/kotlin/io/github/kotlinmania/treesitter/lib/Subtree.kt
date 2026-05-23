@@ -382,6 +382,201 @@ fun tsSubtreeCanInline(padding: Length, size: Length, lookaheadBytes: UInt): Boo
         lookaheadBytes < 16u
 
 /**
+ * Construct a leaf subtree. Picks the inline representation when it fits the
+ * 24-byte budget (small symbol, modest padding/size/lookahead, no external tokens); otherwise
+ * builds a heap representation with the same fields. Faithful port of the `ts_subtree_new_leaf`
+ * dispatch in lib/src/subtree.c.
+ */
+fun tsSubtreeNewLeaf(
+    symbol: TSSymbol,
+    padding: Length,
+    size: Length,
+    lookaheadBytes: UInt,
+    parseState: TSStateId,
+    hasExternalTokens: Boolean,
+    dependsOnColumn: Boolean,
+    isKeyword: Boolean,
+    language: TSLanguage,
+): Subtree {
+    val metadata = tsLanguageSymbolMetadata(language, symbol)
+    val extra = symbol == TS_BUILTIN_SYM_END
+
+    val isInline = symbol <= UByte.MAX_VALUE.toUShort() &&
+        !hasExternalTokens &&
+        tsSubtreeCanInline(padding, size, lookaheadBytes)
+
+    return if (isInline) {
+        Subtree.Inline(
+            symbol = symbol.toUByte(),
+            parseState = parseState,
+            visible = metadata.visible,
+            named = metadata.named,
+            extra = extra,
+            hasChanges = false,
+            isMissing = false,
+            isKeyword = isKeyword,
+            paddingBytes = padding.bytes.toUByte(),
+            paddingRows = padding.extent.row.toUByte(),
+            paddingColumns = padding.extent.column.toUByte(),
+            lookaheadBytes = lookaheadBytes.toUByte(),
+            sizeBytes = size.bytes.toUByte(),
+        )
+    } else {
+        Subtree.Heap(
+            children = emptyList(),
+            symbol = symbol,
+            parseState = parseState,
+            padding = padding,
+            size = size,
+            lookaheadBytes = lookaheadBytes,
+            errorCost = 0u,
+            childCount = 0u,
+            visible = metadata.visible,
+            named = metadata.named,
+            extra = extra,
+            fragileLeft = false,
+            fragileRight = false,
+            hasChanges = false,
+            hasExternalTokens = hasExternalTokens,
+            hasExternalScannerStateChange = false,
+            dependsOnColumn = dependsOnColumn,
+            isMissing = false,
+            isKeyword = isKeyword,
+            branch = Subtree.HeapBranch.NonTerminal(
+                visibleChildCount = 0u,
+                namedChildCount = 0u,
+                visibleDescendantCount = 0u,
+                dynamicPrecedence = 0,
+                repeatDepth = 0u,
+                productionId = 0u,
+                firstLeafSymbol = 0u,
+                firstLeafParseState = 0u,
+            ),
+        )
+    }
+}
+
+/**
+ * Re-assign a subtree's symbol and update its visibility/named flags from the language's
+ * symbol metadata. Inline subtrees enforce the symbol <= UByte.MAX_VALUE constraint that the C
+ * runtime guards with `ts_assert`.
+ */
+fun tsSubtreeSetSymbol(self: Subtree, symbol: TSSymbol, language: TSLanguage): Subtree {
+    val metadata = tsLanguageSymbolMetadata(language, symbol)
+    return when (self) {
+        is Subtree.Inline -> {
+            check(symbol < UByte.MAX_VALUE.toUShort()) {
+                "inline subtree symbol $symbol exceeds UByte range"
+            }
+            Subtree.Inline(
+                symbol = symbol.toUByte(),
+                parseState = self.parseState,
+                visible = metadata.visible,
+                named = metadata.named,
+                extra = self.extra,
+                hasChanges = self.hasChanges,
+                isMissing = self.isMissing,
+                isKeyword = self.isKeyword,
+                paddingBytes = self.paddingBytes,
+                paddingRows = self.paddingRows,
+                paddingColumns = self.paddingColumns,
+                lookaheadBytes = self.lookaheadBytes,
+                sizeBytes = self.sizeBytes,
+            )
+        }
+        is Subtree.Heap -> {
+            self.symbol = symbol
+            self.visible = metadata.visible
+            // Heap.named is val; rebuild with the new named flag if it differs from the existing one.
+            if (self.named == metadata.named) self else self.copy(named = metadata.named)
+        }
+    }
+}
+
+/**
+ * Construct an error leaf. Builds via [tsSubtreeNewLeaf] with the builtin error symbol, then
+ * sets fragile_left/right and stamps the [lookaheadChar] onto the ErrorTerminal branch.
+ */
+fun tsSubtreeNewError(
+    lookaheadChar: Int,
+    padding: Length,
+    size: Length,
+    bytesScanned: UInt,
+    parseState: TSStateId,
+    language: TSLanguage,
+): Subtree {
+    val base = tsSubtreeNewLeaf(
+        symbol = TS_BUILTIN_SYM_ERROR,
+        padding = padding,
+        size = size,
+        lookaheadBytes = bytesScanned,
+        parseState = parseState,
+        hasExternalTokens = false,
+        dependsOnColumn = false,
+        isKeyword = false,
+        language = language,
+    )
+    return when (base) {
+        is Subtree.Inline -> error("ts_builtin_sym_error never fits the inline budget")
+        is Subtree.Heap -> base.copy(
+            fragileLeft = true,
+            fragileRight = true,
+            branch = Subtree.HeapBranch.ErrorTerminal(lookaheadChar = lookaheadChar),
+        )
+    }
+}
+
+/**
+ * Subtree.Heap.copy helper that synthesizes a new instance with the requested field overrides.
+ * Mirrors the data-class copy() semantics that Subtree.Heap doesn't get because it's a regular
+ * class (necessary because two of its fields — symbol/visible/extra — are var, so data-class
+ * copy() would expose those vars in the generated copy signature).
+ */
+private fun Subtree.Heap.copy(
+    children: List<Subtree> = this.children,
+    symbol: TSSymbol = this.symbol,
+    parseState: TSStateId = this.parseState,
+    padding: Length = this.padding,
+    size: Length = this.size,
+    lookaheadBytes: UInt = this.lookaheadBytes,
+    errorCost: UInt = this.errorCost,
+    childCount: UInt = this.childCount,
+    visible: Boolean = this.visible,
+    named: Boolean = this.named,
+    extra: Boolean = this.extra,
+    fragileLeft: Boolean = this.fragileLeft,
+    fragileRight: Boolean = this.fragileRight,
+    hasChanges: Boolean = this.hasChanges,
+    hasExternalTokens: Boolean = this.hasExternalTokens,
+    hasExternalScannerStateChange: Boolean = this.hasExternalScannerStateChange,
+    dependsOnColumn: Boolean = this.dependsOnColumn,
+    isMissing: Boolean = this.isMissing,
+    isKeyword: Boolean = this.isKeyword,
+    branch: Subtree.HeapBranch = this.branch,
+): Subtree.Heap = Subtree.Heap(
+    children = children,
+    symbol = symbol,
+    parseState = parseState,
+    padding = padding,
+    size = size,
+    lookaheadBytes = lookaheadBytes,
+    errorCost = errorCost,
+    childCount = childCount,
+    visible = visible,
+    named = named,
+    extra = extra,
+    fragileLeft = fragileLeft,
+    fragileRight = fragileRight,
+    hasChanges = hasChanges,
+    hasExternalTokens = hasExternalTokens,
+    hasExternalScannerStateChange = hasExternalScannerStateChange,
+    dependsOnColumn = dependsOnColumn,
+    isMissing = isMissing,
+    isKeyword = isKeyword,
+    branch = branch,
+)
+
+/**
  * Walk down the subtree looking for the deepest descendant that carries external-scanner
  * state. Returns null if [tree] has no external tokens at all. Mirrors the recursive walk in
  * `ts_subtree_last_external_token` (lib/src/subtree.c).
