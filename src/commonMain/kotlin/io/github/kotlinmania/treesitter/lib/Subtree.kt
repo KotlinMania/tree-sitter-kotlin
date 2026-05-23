@@ -1,7 +1,9 @@
-// port-lint: source lib/src/subtree.h
+// port-lint: source lib/src/subtree.c
 package io.github.kotlinmania.treesitter.lib
 
 const val TS_TREE_STATE_NONE: UShort = UShort.MAX_VALUE
+val TS_MAX_INLINE_TREE_LENGTH: UInt = UByte.MAX_VALUE.toUInt()
+const val TS_MAX_TREE_POOL_SIZE: Int = 32
 
 /**
  * The serialized state of an external scanner.
@@ -303,6 +305,81 @@ fun tsSubtreeIsFragile(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> false
     is Subtree.Heap -> self.fragileLeft || self.fragileRight
 }
+
+/**
+ * Construct an [ExternalScannerState] from a raw byte payload. The C runtime decided inline vs
+ * heap storage by length; the Kotlin port keeps a single [ByteArray] backing.
+ */
+fun tsExternalScannerStateInit(data: ByteArray): ExternalScannerState =
+    ExternalScannerState(data.copyOf())
+
+fun tsExternalScannerStateData(self: ExternalScannerState): ByteArray = self.bytes
+
+fun tsExternalScannerStateEq(self: ExternalScannerState, buffer: ByteArray, length: UInt): Boolean {
+    if (self.length != length) return false
+    val n = length.toInt()
+    for (i in 0 until n) {
+        if (self.bytes[i] != buffer[i]) return false
+    }
+    return true
+}
+
+fun tsSubtreeArrayCopy(self: SubtreeArray, dest: SubtreeArray) {
+    dest.clear()
+    dest.addAll(self)
+}
+
+fun tsSubtreeArrayClear(self: SubtreeArray) {
+    self.clear()
+}
+
+fun tsSubtreeArrayDelete(self: SubtreeArray) {
+    self.clear()
+}
+
+/**
+ * Move every trailing extra subtree off the end of [self] onto [destination], then reverse
+ * [destination] so it reads in original order.
+ */
+fun tsSubtreeArrayRemoveTrailingExtras(self: SubtreeArray, destination: SubtreeArray) {
+    destination.clear()
+    while (self.isNotEmpty()) {
+        val last = self.last()
+        if (tsSubtreeExtra(last)) {
+            self.removeAt(self.size - 1)
+            destination.add(last)
+        } else {
+            break
+        }
+    }
+    tsSubtreeArrayReverse(destination)
+}
+
+fun tsSubtreeArrayReverse(self: SubtreeArray) {
+    val limit = self.size / 2
+    for (i in 0 until limit) {
+        val reverseIndex = self.size - 1 - i
+        val swap = self[i]
+        self[i] = self[reverseIndex]
+        self[reverseIndex] = swap
+    }
+}
+
+fun tsSubtreePoolNew(capacity: UInt): SubtreePool =
+    SubtreePool(freeTrees = ArrayList(capacity.toInt()), treeStack = ArrayList())
+
+/**
+ * Does the subtree fit in the inline 24-byte representation? Faithful port of the size check
+ * the C runtime uses to decide whether a newly created subtree can use [Subtree.Inline].
+ */
+fun tsSubtreeCanInline(padding: Length, size: Length, lookaheadBytes: UInt): Boolean =
+    padding.bytes < TS_MAX_INLINE_TREE_LENGTH &&
+        padding.extent.row < 16u &&
+        padding.extent.column < TS_MAX_INLINE_TREE_LENGTH &&
+        size.bytes < TS_MAX_INLINE_TREE_LENGTH &&
+        size.extent.row == 0u &&
+        size.extent.column < TS_MAX_INLINE_TREE_LENGTH &&
+        lookaheadBytes < 16u
 
 /**
  * Walk down the subtree looking for the deepest descendant that carries external-scanner

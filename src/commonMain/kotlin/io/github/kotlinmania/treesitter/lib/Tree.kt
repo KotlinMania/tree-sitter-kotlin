@@ -1,4 +1,4 @@
-// port-lint: source lib/src/tree.h
+// port-lint: source lib/src/tree.c
 package io.github.kotlinmania.treesitter.lib
 
 /**
@@ -18,7 +18,24 @@ data class ParentCacheEntry(
  * owning [TSLanguage], and the configured included [TSRange]s.
  */
 class TSTree internal constructor(
-    val root: Subtree,
+    var root: Subtree,
     val language: TSLanguage,
-    val includedRanges: List<TSRange>,
+    val includedRanges: MutableList<TSRange>,
 )
+
+fun tsTreeNew(
+    root: Subtree,
+    language: TSLanguage,
+    includedRanges: List<TSRange>,
+): TSTree = TSTree(
+    root = root,
+    language = language,
+    includedRanges = includedRanges.toMutableList(),
+)
+
+fun tsTreeCopy(self: TSTree): TSTree =
+    tsTreeNew(self.root, self.language, self.includedRanges)
+
+fun tsTreeLanguage(self: TSTree): TSLanguage = self.language
+
+fun tsTreeIncludedRanges(self: TSTree): List<TSRange> = self.includedRanges.toList()
