@@ -577,6 +577,81 @@ private fun Subtree.Heap.copy(
 )
 
 /**
+ * Subtree-vs-subtree comparison used by the parser for sorting and merging tied parses. The C
+ * runtime expressed this with an explicit work stack (`pool->tree_stack`) so deep trees don't
+ * blow the call stack; the Kotlin port keeps the same iterative shape with a [MutableList].
+ *
+ * Returns -1 if [left] sorts before [right], 1 if after, 0 if structurally equal.
+ */
+fun tsSubtreeCompare(left: Subtree, right: Subtree): Int {
+    val workStack: MutableList<Subtree> = mutableListOf(left, right)
+    while (workStack.isNotEmpty()) {
+        val rightTop = workStack.removeAt(workStack.size - 1)
+        val leftTop = workStack.removeAt(workStack.size - 1)
+        val result = when {
+            tsSubtreeSymbol(leftTop) < tsSubtreeSymbol(rightTop) -> -1
+            tsSubtreeSymbol(rightTop) < tsSubtreeSymbol(leftTop) -> 1
+            tsSubtreeChildCount(leftTop) < tsSubtreeChildCount(rightTop) -> -1
+            tsSubtreeChildCount(rightTop) < tsSubtreeChildCount(leftTop) -> 1
+            else -> 0
+        }
+        if (result != 0) return result
+
+        val leftChildren = tsSubtreeChildren(leftTop)
+        val rightChildren = tsSubtreeChildren(rightTop)
+        var i = tsSubtreeChildCount(leftTop).toInt()
+        while (i > 0) {
+            workStack.add(leftChildren[i - 1])
+            workStack.add(rightChildren[i - 1])
+            i--
+        }
+    }
+    return 0
+}
+
+/**
+ * Construct a "missing leaf" subtree. The C runtime built one via `ts_subtree_new_leaf` with
+ * the requested symbol and then flipped the `is_missing` flag. The Kotlin port preserves that
+ * sequence with a small immutable rebuild for the inline variant.
+ */
+fun tsSubtreeNewMissingLeaf(
+    symbol: TSSymbol,
+    padding: Length,
+    lookaheadBytes: UInt,
+    language: TSLanguage,
+): Subtree {
+    val base = tsSubtreeNewLeaf(
+        symbol = symbol,
+        padding = padding,
+        size = Length.ZERO,
+        lookaheadBytes = lookaheadBytes,
+        parseState = 0u,
+        hasExternalTokens = false,
+        dependsOnColumn = false,
+        isKeyword = false,
+        language = language,
+    )
+    return when (base) {
+        is Subtree.Inline -> Subtree.Inline(
+            symbol = base.symbol,
+            parseState = base.parseState,
+            visible = base.visible,
+            named = base.named,
+            extra = base.extra,
+            hasChanges = base.hasChanges,
+            isMissing = true,
+            isKeyword = base.isKeyword,
+            paddingBytes = base.paddingBytes,
+            paddingRows = base.paddingRows,
+            paddingColumns = base.paddingColumns,
+            lookaheadBytes = base.lookaheadBytes,
+            sizeBytes = base.sizeBytes,
+        )
+        is Subtree.Heap -> base.copy(isMissing = true)
+    }
+}
+
+/**
  * Walk down the subtree looking for the deepest descendant that carries external-scanner
  * state. Returns null if [tree] has no external tokens at all. Mirrors the recursive walk in
  * `ts_subtree_last_external_token` (lib/src/subtree.c).
