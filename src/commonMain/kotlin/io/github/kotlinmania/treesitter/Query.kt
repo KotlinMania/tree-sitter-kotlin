@@ -10,7 +10,9 @@ package io.github.kotlinmania.treesitter
  *
  * @since 0.25.0
  */
-typealias QueryProgressCallback = (currentByteOffset: UInt) -> Boolean
+fun interface QueryProgressCallback {
+    operator fun invoke(currentByteOffset: UInt): Boolean
+}
 
 /**
  * A class that represents a set of patterns which match nodes in a syntax tree.

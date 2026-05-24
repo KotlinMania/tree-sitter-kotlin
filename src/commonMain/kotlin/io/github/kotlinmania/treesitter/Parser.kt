@@ -6,7 +6,9 @@ package io.github.kotlinmania.treesitter
  *
  * The function should return `null` to indicate the end of the document.
  */
-typealias ParseReadCallback = (byte: UInt, point: Point) -> CharSequence?
+fun interface ParseReadCallback {
+    operator fun invoke(byte: UInt, point: Point): CharSequence?
+}
 
 /**
  * A function that is called during parsing.
@@ -18,14 +20,18 @@ typealias ParseReadCallback = (byte: UInt, point: Point) -> CharSequence?
  *
  * @since 0.25.0
  */
-typealias ParseProgressCallback = (currentByteOffset: UInt, hasError: Boolean) -> Boolean
+fun interface ParseProgressCallback {
+    operator fun invoke(currentByteOffset: UInt, hasError: Boolean): Boolean
+}
 
 /**
  * A function that logs parsing results.
  *
  * The first argument is the log type and the second argument is the message.
  */
-typealias LogFunction = (type: Parser.LogType, message: String) -> Unit
+fun interface LogFunction {
+    operator fun invoke(type: Parser.LogType, message: String)
+}
 
 /**
  * A class that is used to produce a [syntax tree][Tree] from source code.
