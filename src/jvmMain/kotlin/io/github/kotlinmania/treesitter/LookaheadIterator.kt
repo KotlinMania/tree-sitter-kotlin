@@ -82,7 +82,6 @@ actual class LookaheadIterator @Throws(IllegalArgumentException::class) internal
     private external fun nativeNext(): Boolean
 
     /** A class that pairs a symbol ID with its name. */
-    @JvmRecord
     actual data class Symbol actual constructor(actual val id: UShort, actual val name: String)
 
     private class CleanAction(private val ptr: Long) : Runnable {
