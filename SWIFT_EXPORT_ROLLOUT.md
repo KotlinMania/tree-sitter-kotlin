@@ -418,14 +418,49 @@ Then stop. A human will pick it up.
    env block for the macOS build.
 
 3. **`KotlinStdlib.kt` unchecked-cast bridge** (the big one). When a
-   public Kotlin API exposes `kotlin.Result<T>` or `kotlin.Throwable`
-   across the Swift boundary, the Kotlin plugin generates
+   declaration that reaches the Swift boundary exposes
+   `kotlin.Result<T>` or `kotlin.Throwable` / `kotlin.Exception`, the
+   Kotlin plugin generates
    `build/SwiftExport/<target>/<config>/files/KotlinStdlib/KotlinStdlib.kt`
    containing `Any?` → `Array<Any?>` unchecked casts. Under the
    workspace-canonical `allWarningsAsErrors.set(true)` these become
-   compile errors. **Per-repo workaround**: replace `kotlin.Result<T>`
-   in the public API with a repo-local concrete result type using the
-   flat-class pattern below. See
+   compile errors.
+
+   **First-choice fix when Swift does not need that surface:** keep the
+   Kotlin declaration public, but hide only the Swift-hostile member or
+   type with `@HiddenFromObjC` and add the required file opt-in:
+
+   ```kotlin
+   @file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
+
+   package io.github.kotlinmania.example
+
+   import kotlin.native.HiddenFromObjC
+
+   @HiddenFromObjC
+   public class ParseError(/* ... */) : Exception()
+
+   public class Parser {
+       @HiddenFromObjC
+       public fun tryParse(input: String): Result<Value> =
+           parseValue(input).fold(
+               onSuccess = { Result.success(it) },
+               onFailure = { Result.failure(ParseError(it.message)) },
+           )
+   }
+   ```
+
+   `@HiddenFromObjC` affects only the Kotlin/Native Obj-C / Swift bridge;
+   Kotlin callers, including sibling `*-kotlin` repos, continue to see the
+   same public API. This is the correct repair when the Kotlin port must
+   preserve upstream-shaped public signatures but the Swift smoke test only
+   needs the rest of the module to import and link. uuid-kotlin PR #13 used
+   this pattern for public `Result<Uuid>` parser helpers plus public
+   `Exception`-derived parse error types.
+
+   **When Swift consumers legitimately need the failing result surface:**
+   replace `kotlin.Result<T>` in that public API with a repo-local concrete
+   result type using the flat-class pattern below. See
    [`triage-kotlin-stdlib-in-public-api.md`](./triage-kotlin-stdlib-in-public-api.md)
    for the workspace-wide hit list.
 
@@ -491,7 +526,7 @@ Then stop. A human will pick it up.
    > `Target: arm64-apple-macosx26.0` and `Xcode 26.4.1` straight from
    > the image default. Keep `runs-on: macos-26`; omit the pin step.
 
-All seven are filable upstream against the Kotlin Multiplatform plugin
+These first seven gaps are filable upstream against the Kotlin Multiplatform plugin
 (or, for #7, against the Kotlin/Native distribution's platform-cache
 build pipeline). When they're fixed, the workarounds in this recipe
 become deletable.

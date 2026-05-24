@@ -19,11 +19,11 @@ expect class QueryCursor {
     var timeoutMicros: ULong
 
     /**
-     * The maximum number of in-progress matches.
+     * The maximum number of in-progress query results.
      *
      * Default: `UInt.MAX_VALUE`
      *
-     * @throws [IllegalArgumentException] If the match limit is set to `0`.
+     * @throws [IllegalArgumentException] If the limit is set to `0`.
      */
     var matchLimit: UInt
 
@@ -40,10 +40,10 @@ expect class QueryCursor {
     /**
      * The range of bytes in which the query will be executed.
      *
-     * The query cursor will return matches that intersect with
-     * the given range. This means that a match may be returned
+     * The query cursor will return query results that intersect with
+     * the given range. This means that a result may be returned
      * even if some of its captures fall outside the specified range,
-     * as long as at least part of the match overlaps with the range.
+     * as long as at least part of that result overlaps with the range.
      *
      * Default: `UInt.MIN_VALUE..UInt.MAX_VALUE`
      *
@@ -54,10 +54,10 @@ expect class QueryCursor {
     /**
      * The range of points in which the query will be executed.
      *
-     * The query cursor will return matches that intersect with
-     * the given range. This means that a match may be returned
+     * The query cursor will return query results that intersect with
+     * the given range. This means that a result may be returned
      * even if some of its captures fall outside the specified range,
-     * as long as at least part of the match overlaps with the range.
+     * as long as at least part of that result overlaps with the range.
      *
      * Default: `Point.MIN..Point.MAX`
      *
@@ -67,14 +67,14 @@ expect class QueryCursor {
 
     /**
      * Check if the cursor exceeded its maximum number of
-     * in-progress matches during its last execution.
+     * in-progress query results during its last execution.
      *
      * @see matchLimit
      */
     val didExceedMatchLimit: Boolean
 
     /**
-     * Iterate over all the matches in the order that they were found.
+     * Iterate over all the query results in the order that they were found.
      *
      * #### Example
      *
@@ -94,7 +94,7 @@ expect class QueryCursor {
     /**
      * Iterate over all the individual captures in the order that they appear.
      *
-     * This is useful if you don't care about _which_ pattern matched.
+     * This is useful if you don't care about _which_ pattern produced the capture.
      *
      * @param predicate A function that handles custom predicates.
      */
