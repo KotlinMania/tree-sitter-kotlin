@@ -1,5 +1,9 @@
 // port-lint: source include/tree_sitter/api.h
+@file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
+
 package io.github.kotlinmania.treesitter.lib
+
+import kotlin.native.HiddenFromObjC
 
 typealias TSStateId = UShort
 typealias TSSymbol = UShort
@@ -71,14 +75,21 @@ data class TSInputEdit(
  * starting at offset 0, returning the number of bytes consumed. The decoded code point is
  * written to [codePoint] (index 0), or [TS_DECODE_ERROR] for an invalid sequence.
  */
-typealias DecodeFunction = (string: ByteArray, length: UInt, codePoint: IntArray) -> UInt
+@HiddenFromObjC
+fun interface DecodeFunction {
+    operator fun invoke(string: ByteArray, length: UInt, codePoint: IntArray): UInt
+}
 
 /**
  * Callback signature for [TSInput.read]: return the next chunk of source bytes at the requested
  * byte index / position. An empty result signals end-of-input.
  */
-typealias TSInputReadFn = (payload: Any?, byteIndex: UInt, position: TSPoint) -> ByteArray
+@HiddenFromObjC
+fun interface TSInputReadFn {
+    operator fun invoke(payload: Any?, byteIndex: UInt, position: TSPoint): ByteArray
+}
 
+@HiddenFromObjC
 class TSInput(
     val payload: Any?,
     val read: TSInputReadFn,
@@ -86,20 +97,33 @@ class TSInput(
     val decode: DecodeFunction? = null,
 )
 
+@HiddenFromObjC
 class TSParseState(
     val payload: Any?,
     val currentByteOffset: UInt,
     val hasError: Boolean,
 )
 
+@HiddenFromObjC
+fun interface TSParseProgressCallback {
+    operator fun invoke(state: TSParseState): Boolean
+}
+
+@HiddenFromObjC
 class TSParseOptions(
     val payload: Any?,
-    val progressCallback: ((TSParseState) -> Boolean)? = null,
+    val progressCallback: TSParseProgressCallback? = null,
 )
 
+@HiddenFromObjC
+fun interface TSLoggerLogFn {
+    operator fun invoke(payload: Any?, logType: TSLogType, buffer: String)
+}
+
+@HiddenFromObjC
 class TSLogger(
     val payload: Any?,
-    val log: (payload: Any?, logType: TSLogType, buffer: String) -> Unit,
+    val log: TSLoggerLogFn,
 )
 
 /**
@@ -107,14 +131,17 @@ class TSLogger(
  * pointer; the Kotlin port preserves the same shape with the id as the Subtree reference the
  * node points at and the context array as a [UIntArray] of length 4.
  */
+@HiddenFromObjC
 class TSNode internal constructor(
     val context: UIntArray,
     val subtree: Subtree,
     val tree: TSTree,
 )
 
+@HiddenFromObjC
 class TSQueryCapture(val node: TSNode, val index: UInt)
 
+@HiddenFromObjC
 class TSQueryMatch(
     val id: UInt,
     val patternIndex: UShort,
