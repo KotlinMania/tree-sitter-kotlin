@@ -598,6 +598,26 @@ become deletable.
    erasure problem in the bridge). If the function-type value is
    internal-only, marking the field `internal` is also valid.
 
+   **Alternative when the public API must stay public.** Both triggers
+   8a and 8b accept a second valid fix: tag the offending declaration
+   with `@HiddenFromObjC` (and add `@file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)`
+   at the top of the file). The annotation tells the Kotlin/Native
+   Obj-C / Swift bridge to skip the declaration without changing its
+   Kotlin visibility, so callers in Kotlin (and in other Kotlin
+   sibling repos) still see the same public surface. Use this when
+   making the class `internal` would break the repo's published API
+   contract or when the surface is the public face of a clean-room
+   port whose Rust upstream exposed the type publicly. Evidence:
+   tree-sitter-kotlin commit on `CBufferIter<T>` (trigger 8a, public
+   iterator wrapper that had to stay public to mirror the upstream
+   Rust API) and the follow-on sweep that batch-tagged every public
+   callback typealias and enclosing class in
+   `treesitter/lib/*.kt` (mix of 8a and 8b across the internal
+   C-runtime subpackage). The `internal class` recipe is still the
+   default when there is no API-contract reason to keep the
+   declaration public; `@HiddenFromObjC` is the escape hatch when
+   there is.
+
    **DO NOT** scope `allWarningsAsErrors=false` to the
    `compileSwiftExportMain*` task family for either trigger. That was
    tried first (itertools-kotlin PR #22 for trigger 8a) and is symptom
@@ -615,7 +635,10 @@ become deletable.
    bridged to Swift. itertools-kotlin commit `40513a5` is the canonical
    reference for trigger 8a; tree-sitter-language-kotlin (the
    `LanguageFn` / `LanguageProvider` rewrite) is the canonical reference
-   for trigger 8b.
+   for trigger 8b. tree-sitter-kotlin's batch SAM-ification of seven
+   public function-type surfaces (preemptive, not reactive — done from
+   the bridge-clean source before CI surfaced the warnings) is the
+   canonical reference for the audit-and-sweep pattern below.
 
    *Audit grep (run once per repo after a fresh `embedSwiftExportForXcode`):*
 
@@ -935,6 +958,77 @@ The bridge file's exported function now references `LanguageProvider`
 (a nominal symbol Swift Export emits a binding for) instead of the
 erased `Function0<Long>`. No `Any` cast.
 
+### After (migration variant: name the SAM method `invoke`)
+
+The recipe above uses `fun call()` as the SAM method, which is right
+for new APIs. For repos *migrating* from a public typealias whose
+call sites already use call-syntax (`callback(arg)` instead of
+`callback.call(arg)`), name the SAM method `operator fun invoke(...)`
+so Kotlin's invoke-operator convention keeps every existing call site
+working without an edit:
+
+```kotlin
+// Before (typealias):
+typealias ParseProgressCallback = (currentByteOffset: UInt, hasError: Boolean) -> Boolean
+
+// After (fun interface with invoke):
+fun interface ParseProgressCallback {
+    operator fun invoke(currentByteOffset: UInt, hasError: Boolean): Boolean
+}
+```
+
+Every prior caller of `callback(byte, hasError)` continues to compile
+unchanged — `callback(...)` is now `callback.invoke(...)` via the
+operator convention. `StableRef<ParseProgressCallback>` references in
+nativeMain actuals also compile unchanged because the type name is
+the same; only its kind changed (typealias → fun interface). Evidence:
+tree-sitter-kotlin batch SAM-ification of seven public typealiases
+and inline callback parameters, where this naming choice meant the
+`jvmMain`, `androidMain`, and `nativeMain` actuals needed zero edits.
+
+### Alternative: `@HiddenFromObjC` when the public API must stay public
+
+The `fun interface` rewrite changes the public Kotlin API (callers
+that wrote out `(UInt, Boolean) -> Boolean` explicitly must update to
+the SAM type name). When the source-of-truth contract for the Kotlin
+port requires keeping the original function-type shape — e.g. the
+clean-room Rust upstream exposed the callback as a function-pointer
+and the Kotlin port mirrors that signature publicly — tag the
+declaration with `@HiddenFromObjC` instead and leave the function
+type alone:
+
+```kotlin
+@file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
+
+package io.github.kotlinmania.treesitter
+
+import kotlin.native.HiddenFromObjC
+
+@HiddenFromObjC
+class CBufferIter<T> internal constructor(
+    private val items: List<T>,
+) : Iterator<T> {
+    // ... unchanged
+}
+```
+
+The annotation only affects the Kotlin/Native Obj-C / Swift bridge:
+Kotlin callers (including other sibling `*-kotlin` repos) keep
+seeing the same public class with the same signature. The Swift
+Export bridge file skips the declaration entirely, so the
+`Unchecked cast of 'Any'` line never appears. This applies to both
+trigger 8a (generic class) and trigger 8b (function-type field /
+parameter / return).
+
+When most or all of a subpackage is internal-by-convention runtime
+code that should never reach Swift — tree-sitter-kotlin's
+`treesitter.lib` C-runtime port is the canonical example — sweep it
+with file-level OptIn plus per-class `@HiddenFromObjC` rather than
+tagging one declaration at a time. `@HiddenFromObjC` has no `FILE`
+target, so the annotation must go on each class / property / function
+individually; the file-level `@file:OptIn(ExperimentalObjCRefinement)`
+is what enables those per-declaration annotations.
+
 ### Tests
 
 SAM-convertible interfaces work the same as function types in tests
@@ -997,17 +1091,51 @@ grep -nE "as kotlin\\.Function[0-9]+<" \
 ```
 
 Every match is a candidate for the `fun interface` treatment. As a
-source-side audit, also grep for public function-type signatures:
+source-side audit (preferred — it also catches surfaces the bridge
+hasn't been generated for yet, e.g. new ports or new public
+typealiases added to existing ports), grep for public function-type
+signatures:
 
 ```sh
 grep -nE "^(public |internal |private )?(class |object |val |var |fun )[^=]*: \\(.*\\) -> " \
     src/commonMain/kotlin/**/*.kt
 grep -nE "^(public |internal |private )?(class |object |val |var |fun )[^=]*\\(.* \\(.*\\) -> " \
     src/commonMain/kotlin/**/*.kt
+grep -rnE "^typealias [A-Z][A-Za-z0-9_]+ = \\(.*\\) -> " \
+    src/commonMain/kotlin/
 ```
 
-If both grep passes return no results, trigger 8b doesn't apply and
+If all three passes return no results, trigger 8b doesn't apply and
 no API change is needed.
+
+### Preemptive sweep (run on every fresh port)
+
+A new repo's public function-type surfaces should be SAM-ified
+**before** Swift Export ever runs against them, not after CI surfaces
+the warning. The audit greps above are cheap to run from a clean
+checkout. The pattern from tree-sitter-kotlin (seven SAMs landed in
+a single PR ahead of CI evidence):
+
+1. Run the three source-side greps. Catalog every public
+   function-type surface.
+2. For each surface, decide:
+   - **typealias whose call sites use `callback(arg)` syntax** →
+     replace with `fun interface X { operator fun invoke(...) }`
+     so call sites compile unchanged.
+   - **new SAM, no existing call-syntax constraint** → name the SAM
+     method semantically (`fun call()`, `fun read(byte: UInt)`, etc.).
+   - **inline `((State) -> Boolean)?` parameter on a builder class**
+     → introduce a co-located named SAM and replace the parameter
+     type.
+   - **subpackage that is internal-by-convention runtime port** →
+     tag every class with `@HiddenFromObjC` (file-level
+     `@file:OptIn(ExperimentalObjCRefinement)` enables the
+     per-class annotation; there is no `@file:HiddenFromObjC` target).
+3. Compile the three highest-coverage targets (`macosArm64`, `jvm`,
+   `androidMain`) locally to confirm the SAM conversion didn't break
+   any call site. Lambda call sites at invocation positions
+   SAM-convert automatically; `StableRef<TypeName>` references stay
+   the same because the type name didn't change, only its kind.
 
 ---
 
