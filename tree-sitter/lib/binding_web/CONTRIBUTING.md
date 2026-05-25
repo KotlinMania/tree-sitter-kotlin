@@ -17,10 +17,9 @@ compiling the library to WASM.
 
 ### Building
 
-Clone the repository:
+Start from a prepared checkout:
 
 ```sh
-git clone https://github.com/tree-sitter/tree-sitter
 cd tree-sitter/lib/binding_web
 ```
 
