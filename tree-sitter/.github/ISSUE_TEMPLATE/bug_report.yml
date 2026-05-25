@@ -14,7 +14,7 @@ body:
       label: "Steps to reproduce"
       placeholder: |
         ```sh
-        git clone --depth=1 https://github.com/tree-sitter/tree-sitter-ruby
+        # start from a prepared tree-sitter-ruby checkout
         cd tree-sitter-ruby
         tree-sitter generate
         ```
