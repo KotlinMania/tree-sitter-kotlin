@@ -6,10 +6,10 @@ import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 @OptIn(ExperimentalAtomicApi::class)
-fun atomicLoad(p: AtomicLong): Long = p.load()
+internal fun atomicLoad(p: AtomicLong): Long = p.load()
 
 @OptIn(ExperimentalAtomicApi::class)
-fun atomicInc(p: AtomicInt): Int = p.addAndFetch(1)
+internal fun atomicInc(p: AtomicInt): Int = p.addAndFetch(1)
 
 @OptIn(ExperimentalAtomicApi::class)
-fun atomicDec(p: AtomicInt): Int = p.addAndFetch(-1)
+internal fun atomicDec(p: AtomicInt): Int = p.addAndFetch(-1)

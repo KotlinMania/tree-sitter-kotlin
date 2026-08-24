@@ -1,7 +1,7 @@
 // port-lint: source lib/src/tree_cursor.h
 package io.github.kotlinmania.treesitter.lib
 
-data class TreeCursorEntry(
+internal data class TreeCursorEntry(
     val subtree: Subtree,
     val position: Length,
     val childIndex: UInt,
@@ -9,12 +9,12 @@ data class TreeCursorEntry(
     val descendantIndex: UInt,
 )
 
-class TreeCursor internal constructor(
+internal class TreeCursor internal constructor(
     val tree: TSTree,
     val stack: MutableList<TreeCursorEntry>,
     var rootAliasSymbol: TSSymbol,
 )
 
-enum class TreeCursorStep { None, Hidden, Visible }
+internal enum class TreeCursorStep { None, Hidden, Visible }
 
-fun tsTreeCursorCurrentSubtree(self: TreeCursor): Subtree = self.stack.last().subtree
+internal fun tsTreeCursorCurrentSubtree(self: TreeCursor): Subtree = self.stack.last().subtree

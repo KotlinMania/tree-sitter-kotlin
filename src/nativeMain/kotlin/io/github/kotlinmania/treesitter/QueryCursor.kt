@@ -115,7 +115,7 @@ actual class QueryCursor internal constructor(
      *
      * @throws [IllegalArgumentException] If set to an invalid range.
      */
-    actual var pointRange: ClosedRange<Point> = Point.MIN..Point.MAX
+    actual var pointRange: PointRange = Point.MIN..Point.MAX
         set(value) {
             val start = cValue<TSPoint> { from(value.start) }
             val end = cValue<TSPoint> { from(value.endInclusive) }

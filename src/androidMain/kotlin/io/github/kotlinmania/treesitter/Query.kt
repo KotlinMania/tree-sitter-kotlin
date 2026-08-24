@@ -357,7 +357,6 @@ actual class Query @Throws(QueryError::class) actual constructor(
      */
     @FastNative
     @JvmName("startByteForPattern")
-    @Throws(IndexOutOfBoundsException::class)
     actual external fun startByteForPattern(index: UInt): UInt
 
     /**
@@ -369,7 +368,6 @@ actual class Query @Throws(QueryError::class) actual constructor(
      */
     @FastNative
     @JvmName("endByteForPattern")
-    @Throws(IndexOutOfBoundsException::class)
     actual external fun endByteForPattern(index: UInt): UInt
 
     /**

@@ -29,7 +29,7 @@ Every matched file is listed below with function and type symbol parity.
 
 ### 1. lib
 
-- **Target:** `Tree`
+- **Target:** `treesitter.Tree`
 - **Similarity:** 0.03
 - **Dependents:** 0
 - **Priority Score:** 1711209.8
@@ -40,7 +40,7 @@ Every matched file is listed below with function and type symbol parity.
 
 ### 2. util
 
-- **Target:** `CBufferIter`
+- **Target:** `treesitter.CBufferIter`
 - **Similarity:** 0.36
 - **Dependents:** 0
 - **Priority Score:** 10606.4

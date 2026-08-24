@@ -363,7 +363,6 @@ actual class Query @Throws(QueryError::class) actual constructor(
      * @throws [IndexOutOfBoundsException]
      *  If the index exceeds the [pattern count][patternCount].
      */
-    @Throws(IndexOutOfBoundsException::class)
     actual fun startByteForPattern(index: UInt): UInt {
         if (index >= patternCount)
             throw IndexOutOfBoundsException("Pattern index $index is out of bounds")
@@ -377,7 +376,6 @@ actual class Query @Throws(QueryError::class) actual constructor(
      *  If the index exceeds the [pattern count][patternCount].
      * @since 0.23.0
      */
-    @Throws(IndexOutOfBoundsException::class)
     actual fun endByteForPattern(index: UInt): UInt {
         if (index >= patternCount)
             throw IndexOutOfBoundsException("Pattern index $index is out of bounds")

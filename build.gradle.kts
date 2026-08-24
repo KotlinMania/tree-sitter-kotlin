@@ -18,10 +18,16 @@ import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootExtension
 import org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsEnvSpec
 import org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnRootEnvSpec
 import java.io.ByteArrayInputStream
+import java.io.File
+import java.io.OutputStream.nullOutputStream
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.zip.ZipInputStream
+import javax.inject.Inject
+import org.gradle.internal.os.OperatingSystem
+import org.gradle.kotlin.dsl.support.useToRun
+import org.jetbrains.kotlin.gradle.tasks.CInteropProcess
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
@@ -299,7 +305,7 @@ if (gradle.startParameter.taskNames.any(::requestedTaskWantsAndroid)) {
     installProjectAndroidSdk(serviceOf())
 }
 
-val ensureAndroidSdk by tasks.registering {
+val ensureAndroidSdk = tasks.register("ensureAndroidSdk") {
     group = "setup"
     description = "Ensures the project-local Android SDK is installed (idempotent)."
     onlyIf("Android SDK already installed at $projectAndroidSdkDir") { !isProjectAndroidSdkInstalled() }
@@ -330,6 +336,34 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().con
 }
 
 val jvmToolchainVersion = providers.gradleProperty("jvm.toolchain").getOrElse("21").toInt()
+
+// Vendored upstream tree-sitter C library plus Kotlin/Native cinterop wiring. The
+// tree-sitter runtime is amalgamated in tree-sitter/lib/src/lib.c; per-target builds
+// of libtree-sitter.a feed the cinterop binding declared in
+// src/nativeInterop/cinterop/treesitter.def.
+interface TreesitterExecInjected {
+    @get:Inject val execOps: ExecOperations
+}
+
+val treesitterExecService = objects.newInstance<TreesitterExecInjected>()
+val hostOs: OperatingSystem = OperatingSystem.current()
+val treesitterLibsDir = layout.buildDirectory.get().dir("libs")
+val treesitterVendorDir = layout.projectDirectory.dir("tree-sitter").asFile
+
+inline val File.unixPath: String
+    get() = if (!hostOs.isWindows) path else path.replace("\\", "/")
+
+fun KotlinNativeTarget.treesitter() {
+    compilations.configureEach {
+        cinterops.register("treesitter") {
+            val srcDir = treesitterVendorDir.resolve("lib/src")
+            val includeDir = treesitterVendorDir.resolve("lib/include")
+            includeDirs.allHeaders(srcDir, includeDir)
+            includeDirs.headerFilterOnly(includeDir)
+            extraOpts("-libraryPath", treesitterLibsDir.dir(konanTarget.name).asFile.absolutePath)
+        }
+    }
+}
 
 // ============================================================================
 // kotlin { … }
@@ -383,34 +417,42 @@ kotlin {
     macosArm64 {
         configureBenchmarkCompilation()
         addToXcf()
+        treesitter()
     }
     iosArm64 {
         configureBenchmarkCompilation()
         addToXcf(static = true)
+        treesitter()
     }
     iosSimulatorArm64 {
         configureBenchmarkCompilation()
         addToXcf(static = true)
+        treesitter()
     }
     tvosArm64 {
         configureBenchmarkCompilation()
         addToXcf()
+        treesitter()
     }
     tvosSimulatorArm64 {
         configureBenchmarkCompilation()
         addToXcf()
+        treesitter()
     }
     watchosArm64 {
         configureBenchmarkCompilation()
         addToXcf()
+        treesitter()
     }
     watchosDeviceArm64 {
         configureBenchmarkCompilation()
         addToXcf()
+        treesitter()
     }
     watchosSimulatorArm64 {
         configureBenchmarkCompilation()
         addToXcf()
+        treesitter()
     }
 
     // iosX64: Intel Mac simulator. Tier 3 in Kotlin/Native but NOT deprecated —
@@ -418,18 +460,40 @@ kotlin {
     iosX64 {
         configureBenchmarkCompilation()
         addToXcf(static = true)
+        treesitter()
     }
 
     // Other native — Tier 1/2
-    linuxX64 { configureBenchmarkCompilation() }
-    linuxArm64 { configureBenchmarkCompilation() }
-    mingwX64 { configureBenchmarkCompilation() }
+    linuxX64 {
+        configureBenchmarkCompilation()
+        treesitter()
+    }
+    linuxArm64 {
+        configureBenchmarkCompilation()
+        treesitter()
+    }
+    mingwX64 {
+        configureBenchmarkCompilation()
+        treesitter()
+    }
 
     // Android NDK — always built (full target surface, no opt-in gate).
-    androidNativeArm32 { configureBenchmarkCompilation() }
-    androidNativeArm64 { configureBenchmarkCompilation() }
-    androidNativeX86 { configureBenchmarkCompilation() }
-    androidNativeX64 { configureBenchmarkCompilation() }
+    androidNativeArm32 {
+        configureBenchmarkCompilation()
+        treesitter()
+    }
+    androidNativeArm64 {
+        configureBenchmarkCompilation()
+        treesitter()
+    }
+    androidNativeX86 {
+        configureBenchmarkCompilation()
+        treesitter()
+    }
+    androidNativeX64 {
+        configureBenchmarkCompilation()
+        treesitter()
+    }
 
     // Web
     js {
@@ -488,6 +552,10 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
+
+        val webMain = getByName("webMain")
+        getByName("wasmWasiMain").dependsOn(webMain)
+
         if (benchmarkEnabled) {
             val commonBenchmark = maybeCreate("commonBenchmark")
             commonBenchmark.dependencies {
@@ -711,8 +779,7 @@ mavenPublishing {
 tasks.register("test") {
     group = "verification"
     description = "Runs the commonTest-backed KMP suite, Android host tests, and Swift Export smoke test."
-    dependsOn("allTests")
-    dependsOn("testAndroidHostTest")
+    dependsOn("hostTests")
     dependsOn("swiftExportSmokeTest")
 }
 
@@ -750,12 +817,13 @@ tasks.register("swiftExportSmokeTest") {
 
     doLast {
         val execOperations = serviceOf<ExecOperations>()
-        val swiftBuildDir =
+        val swiftBuildDirFile =
             layout.buildDirectory
                 .dir("swift-test")
                 .get()
                 .asFile
-                .absolutePath
+        delete(swiftBuildDirFile)
+        val swiftBuildDir = swiftBuildDirFile.absolutePath
         execOperations
             .exec {
                 workingDir = projectDir
@@ -871,4 +939,82 @@ val fullTargetBuildTaskNames =
 
 tasks.named("build") {
     dependsOn(fullTargetBuildTaskNames)
+}
+
+// Compile vendored tree-sitter/lib/src/lib.c into a per-target libtree-sitter.a
+// before each CInteropProcess runs. Uses run_konan clang so the C runtime is
+// cross-compiled with the same Kotlin/Native toolchain as the Kotlin output,
+// then llvm-ar archives the object into the static lib the .def file references.
+val konanUserDir =
+    System.getenv("KONAN_DATA_DIR")?.let(::File)
+        ?: File(System.getProperty("user.home")).resolve(".konan")
+
+fun resolveKonanHome(): File {
+    val hostPlatform =
+        when {
+            isMacHost && System.getProperty("os.arch") == "aarch64" -> "macos-aarch64"
+            isMacHost -> "macos-x86_64"
+            isWindowsHost -> "windows-x86_64"
+            System.getProperty("os.arch") == "aarch64" -> "linux-aarch64"
+            else -> "linux-x86_64"
+        }
+    val candidate = konanUserDir.resolve("kotlin-native-prebuilt-$hostPlatform-$kotlinVersion")
+    if (candidate.exists()) return candidate
+    val found =
+        konanUserDir.listFiles()?.filter {
+            it.isDirectory && it.name.startsWith("kotlin-native-prebuilt-$hostPlatform")
+        }?.maxByOrNull { it.name }
+    return found ?: candidate
+}
+
+tasks.withType<CInteropProcess>().configureEach {
+    if (name.startsWith("cinteropTest")) return@configureEach
+
+    val runKonan =
+        resolveKonanHome().resolve("bin")
+            .resolve(if (hostOs.isWindows) "run_konan.bat" else "run_konan").path
+    val libFile =
+        treesitterLibsDir.dir(konanTarget.name).file(
+            "${konanTarget.family.staticPrefix}tree-sitter.${konanTarget.family.staticSuffix}",
+        ).asFile
+    val objectFile = treesitterVendorDir.resolve("lib.o")
+
+    doFirst {
+        libFile.parentFile.mkdirs()
+
+        val argsFile = File.createTempFile("args", null)
+        argsFile.deleteOnExit()
+        argsFile.writer().useToRun {
+            write("-I" + treesitterVendorDir.resolve("lib/src").unixPath + "\n")
+            write("-I" + treesitterVendorDir.resolve("lib/include").unixPath + "\n")
+            write("-DTREE_SITTER_HIDE_SYMBOLS\n")
+            write("-D_DEFAULT_SOURCE\n")
+            write("-D_POSIX_C_SOURCE=200112L\n")
+            write("-fvisibility=hidden\n")
+            write("-std=c11\n")
+            write("-O2\n")
+            write("-g\n")
+            write("-c\n")
+            write("-o\n")
+            write(objectFile.unixPath + "\n")
+            write(treesitterVendorDir.resolve("lib/src/lib.c").unixPath + "\n")
+        }
+
+        treesitterExecService.execOps.exec {
+            executable = runKonan
+            workingDir = treesitterVendorDir
+            standardOutput = nullOutputStream()
+            args("clang", "clang", konanTarget.name, "@" + argsFile.path)
+        }
+
+        treesitterExecService.execOps.exec {
+            executable = runKonan
+            workingDir = treesitterVendorDir
+            standardOutput = nullOutputStream()
+            args("llvm", "llvm-ar", "rcs", libFile.path, objectFile.path)
+        }
+    }
+
+    inputs.file(treesitterVendorDir.resolve("lib/src/lib.c"))
+    outputs.file(libFile)
 }

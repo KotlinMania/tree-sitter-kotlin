@@ -1,9 +1,9 @@
 // port-lint: source lib/src/subtree.c
 package io.github.kotlinmania.treesitter.lib
 
-const val TS_TREE_STATE_NONE: UShort = UShort.MAX_VALUE
-val TS_MAX_INLINE_TREE_LENGTH: UInt = UByte.MAX_VALUE.toUInt()
-const val TS_MAX_TREE_POOL_SIZE: Int = 32
+internal const val TS_TREE_STATE_NONE: UShort = UShort.MAX_VALUE
+internal val TS_MAX_INLINE_TREE_LENGTH: UInt = UByte.MAX_VALUE.toUInt()
+internal const val TS_MAX_TREE_POOL_SIZE: Int = 32
 
 /**
  * The serialized state of an external scanner.
@@ -15,7 +15,7 @@ const val TS_MAX_TREE_POOL_SIZE: Int = 32
  * heap; the Kotlin port stores all payloads in a single [ByteArray] and lets the GC handle
  * lifetime.
  */
-class ExternalScannerState internal constructor(internal val bytes: ByteArray) {
+internal class ExternalScannerState internal constructor(internal val bytes: ByteArray) {
     val length: UInt get() = bytes.size.toUInt()
 }
 
@@ -28,7 +28,7 @@ class ExternalScannerState internal constructor(internal val bytes: ByteArray) {
  * Kotlin port preserves that two-variant shape as a sealed class so callers reason about each
  * case explicitly; GC handles the allocation distinction the inline-vs-heap split was paying for.
  */
-sealed class Subtree {
+internal sealed class Subtree {
 
     abstract val isInline: Boolean
 
@@ -110,73 +110,73 @@ sealed class Subtree {
     }
 }
 
-typealias SubtreeArray = MutableList<Subtree>
+internal typealias SubtreeArray = MutableList<Subtree>
 
-class SubtreePool internal constructor(
+internal class SubtreePool internal constructor(
     @Suppress("MemberVisibilityCanBePrivate")
     val freeTrees: MutableList<Subtree> = mutableListOf(),
     @Suppress("MemberVisibilityCanBePrivate")
     val treeStack: MutableList<Subtree> = mutableListOf(),
 )
 
-fun tsSubtreeSymbol(self: Subtree): TSSymbol = when (self) {
+internal fun tsSubtreeSymbol(self: Subtree): TSSymbol = when (self) {
     is Subtree.Inline -> self.symbol.toUShort()
     is Subtree.Heap -> self.symbol
 }
 
-fun tsSubtreeVisible(self: Subtree): Boolean = when (self) {
+internal fun tsSubtreeVisible(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> self.visible
     is Subtree.Heap -> self.visible
 }
 
-fun tsSubtreeNamed(self: Subtree): Boolean = when (self) {
+internal fun tsSubtreeNamed(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> self.named
     is Subtree.Heap -> self.named
 }
 
-fun tsSubtreeExtra(self: Subtree): Boolean = when (self) {
+internal fun tsSubtreeExtra(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> self.extra
     is Subtree.Heap -> self.extra
 }
 
-fun tsSubtreeHasChanges(self: Subtree): Boolean = when (self) {
+internal fun tsSubtreeHasChanges(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> self.hasChanges
     is Subtree.Heap -> self.hasChanges
 }
 
-fun tsSubtreeMissing(self: Subtree): Boolean = when (self) {
+internal fun tsSubtreeMissing(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> self.isMissing
     is Subtree.Heap -> self.isMissing
 }
 
-fun tsSubtreeIsKeyword(self: Subtree): Boolean = when (self) {
+internal fun tsSubtreeIsKeyword(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> self.isKeyword
     is Subtree.Heap -> self.isKeyword
 }
 
-fun tsSubtreeParseState(self: Subtree): TSStateId = when (self) {
+internal fun tsSubtreeParseState(self: Subtree): TSStateId = when (self) {
     is Subtree.Inline -> self.parseState
     is Subtree.Heap -> self.parseState
 }
 
-fun tsSubtreeLookaheadBytes(self: Subtree): UInt = when (self) {
+internal fun tsSubtreeLookaheadBytes(self: Subtree): UInt = when (self) {
     is Subtree.Inline -> self.lookaheadBytes.toUInt()
     is Subtree.Heap -> self.lookaheadBytes
 }
 
-fun tsSubtreeChildren(self: Subtree): List<Subtree> = when (self) {
+internal fun tsSubtreeChildren(self: Subtree): List<Subtree> = when (self) {
     is Subtree.Inline -> emptyList()
     is Subtree.Heap -> self.children
 }
 
-fun tsSubtreeSetExtra(self: Subtree, isExtra: Boolean) {
+internal fun tsSubtreeSetExtra(self: Subtree, isExtra: Boolean) {
     when (self) {
         is Subtree.Inline -> error("inline subtree extra flag is immutable; mutate the parent variant instead")
         is Subtree.Heap -> self.extra = isExtra
     }
 }
 
-fun tsSubtreeLeafSymbol(self: Subtree): TSSymbol = when (self) {
+internal fun tsSubtreeLeafSymbol(self: Subtree): TSSymbol = when (self) {
     is Subtree.Inline -> self.symbol.toUShort()
     is Subtree.Heap -> when {
         self.childCount == 0u -> self.symbol
@@ -188,7 +188,7 @@ fun tsSubtreeLeafSymbol(self: Subtree): TSSymbol = when (self) {
     }
 }
 
-fun tsSubtreeLeafParseState(self: Subtree): TSStateId = when (self) {
+internal fun tsSubtreeLeafParseState(self: Subtree): TSStateId = when (self) {
     is Subtree.Inline -> self.parseState
     is Subtree.Heap -> when {
         self.childCount == 0u -> self.parseState
@@ -200,7 +200,7 @@ fun tsSubtreeLeafParseState(self: Subtree): TSStateId = when (self) {
     }
 }
 
-fun tsSubtreePadding(self: Subtree): Length = when (self) {
+internal fun tsSubtreePadding(self: Subtree): Length = when (self) {
     is Subtree.Inline -> Length(
         bytes = self.paddingBytes.toUInt(),
         extent = Point(self.paddingRows.toUInt(), self.paddingColumns.toUInt()),
@@ -208,7 +208,7 @@ fun tsSubtreePadding(self: Subtree): Length = when (self) {
     is Subtree.Heap -> self.padding
 }
 
-fun tsSubtreeSize(self: Subtree): Length = when (self) {
+internal fun tsSubtreeSize(self: Subtree): Length = when (self) {
     is Subtree.Inline -> Length(
         bytes = self.sizeBytes.toUInt(),
         extent = Point(0u, self.sizeBytes.toUInt()),
@@ -216,27 +216,27 @@ fun tsSubtreeSize(self: Subtree): Length = when (self) {
     is Subtree.Heap -> self.size
 }
 
-fun tsSubtreeTotalSize(self: Subtree): Length =
+internal fun tsSubtreeTotalSize(self: Subtree): Length =
     lengthAdd(tsSubtreePadding(self), tsSubtreeSize(self))
 
-fun tsSubtreeTotalBytes(self: Subtree): UInt = tsSubtreeTotalSize(self).bytes
+internal fun tsSubtreeTotalBytes(self: Subtree): UInt = tsSubtreeTotalSize(self).bytes
 
-fun tsSubtreeChildCount(self: Subtree): UInt = when (self) {
+internal fun tsSubtreeChildCount(self: Subtree): UInt = when (self) {
     is Subtree.Inline -> 0u
     is Subtree.Heap -> self.childCount
 }
 
-fun tsSubtreeRepeatDepth(self: Subtree): UInt = when (self) {
+internal fun tsSubtreeRepeatDepth(self: Subtree): UInt = when (self) {
     is Subtree.Inline -> 0u
     is Subtree.Heap -> (self.branch as? Subtree.HeapBranch.NonTerminal)?.repeatDepth?.toUInt() ?: 0u
 }
 
-fun tsSubtreeIsRepetition(self: Subtree): UInt = when (self) {
+internal fun tsSubtreeIsRepetition(self: Subtree): UInt = when (self) {
     is Subtree.Inline -> 0u
     is Subtree.Heap -> if (!self.named && !self.visible && self.childCount != 0u) 1u else 0u
 }
 
-fun tsSubtreeVisibleDescendantCount(self: Subtree): UInt = when (self) {
+internal fun tsSubtreeVisibleDescendantCount(self: Subtree): UInt = when (self) {
     is Subtree.Inline -> 0u
     is Subtree.Heap -> if (self.childCount == 0u) {
         0u
@@ -245,14 +245,14 @@ fun tsSubtreeVisibleDescendantCount(self: Subtree): UInt = when (self) {
     }
 }
 
-fun tsSubtreeVisibleChildCount(self: Subtree): UInt =
+internal fun tsSubtreeVisibleChildCount(self: Subtree): UInt =
     if (tsSubtreeChildCount(self) > 0u && self is Subtree.Heap) {
         (self.branch as? Subtree.HeapBranch.NonTerminal)?.visibleChildCount ?: 0u
     } else {
         0u
     }
 
-fun tsSubtreeErrorCost(self: Subtree): UInt =
+internal fun tsSubtreeErrorCost(self: Subtree): UInt =
     if (tsSubtreeMissing(self)) {
         (ERROR_COST_PER_MISSING_TREE + ERROR_COST_PER_RECOVERY).toUInt()
     } else when (self) {
@@ -260,7 +260,7 @@ fun tsSubtreeErrorCost(self: Subtree): UInt =
         is Subtree.Heap -> self.errorCost
     }
 
-fun tsSubtreeDynamicPrecedence(self: Subtree): Int = when (self) {
+internal fun tsSubtreeDynamicPrecedence(self: Subtree): Int = when (self) {
     is Subtree.Inline -> 0
     is Subtree.Heap -> if (self.childCount == 0u) {
         0
@@ -269,39 +269,39 @@ fun tsSubtreeDynamicPrecedence(self: Subtree): Int = when (self) {
     }
 }
 
-fun tsSubtreeProductionId(self: Subtree): UShort =
+internal fun tsSubtreeProductionId(self: Subtree): UShort =
     if (tsSubtreeChildCount(self) > 0u && self is Subtree.Heap) {
         (self.branch as? Subtree.HeapBranch.NonTerminal)?.productionId ?: 0u
     } else {
         0u
     }
 
-fun tsSubtreeFragileLeft(self: Subtree): Boolean = when (self) {
+internal fun tsSubtreeFragileLeft(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> false
     is Subtree.Heap -> self.fragileLeft
 }
 
-fun tsSubtreeFragileRight(self: Subtree): Boolean = when (self) {
+internal fun tsSubtreeFragileRight(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> false
     is Subtree.Heap -> self.fragileRight
 }
 
-fun tsSubtreeHasExternalTokens(self: Subtree): Boolean = when (self) {
+internal fun tsSubtreeHasExternalTokens(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> false
     is Subtree.Heap -> self.hasExternalTokens
 }
 
-fun tsSubtreeHasExternalScannerStateChange(self: Subtree): Boolean = when (self) {
+internal fun tsSubtreeHasExternalScannerStateChange(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> false
     is Subtree.Heap -> self.hasExternalScannerStateChange
 }
 
-fun tsSubtreeDependsOnColumn(self: Subtree): Boolean = when (self) {
+internal fun tsSubtreeDependsOnColumn(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> false
     is Subtree.Heap -> self.dependsOnColumn
 }
 
-fun tsSubtreeIsFragile(self: Subtree): Boolean = when (self) {
+internal fun tsSubtreeIsFragile(self: Subtree): Boolean = when (self) {
     is Subtree.Inline -> false
     is Subtree.Heap -> self.fragileLeft || self.fragileRight
 }
@@ -310,12 +310,12 @@ fun tsSubtreeIsFragile(self: Subtree): Boolean = when (self) {
  * Construct an [ExternalScannerState] from a raw byte payload. The C runtime decided inline vs
  * heap storage by length; the Kotlin port keeps a single [ByteArray] backing.
  */
-fun tsExternalScannerStateInit(data: ByteArray): ExternalScannerState =
+internal fun tsExternalScannerStateInit(data: ByteArray): ExternalScannerState =
     ExternalScannerState(data.copyOf())
 
-fun tsExternalScannerStateData(self: ExternalScannerState): ByteArray = self.bytes
+internal fun tsExternalScannerStateData(self: ExternalScannerState): ByteArray = self.bytes
 
-fun tsExternalScannerStateEq(self: ExternalScannerState, buffer: ByteArray, length: UInt): Boolean {
+internal fun tsExternalScannerStateEq(self: ExternalScannerState, buffer: ByteArray, length: UInt): Boolean {
     if (self.length != length) return false
     val n = length.toInt()
     for (i in 0 until n) {
@@ -324,16 +324,16 @@ fun tsExternalScannerStateEq(self: ExternalScannerState, buffer: ByteArray, leng
     return true
 }
 
-fun tsSubtreeArrayCopy(self: SubtreeArray, dest: SubtreeArray) {
+internal fun tsSubtreeArrayCopy(self: SubtreeArray, dest: SubtreeArray) {
     dest.clear()
     dest.addAll(self)
 }
 
-fun tsSubtreeArrayClear(self: SubtreeArray) {
+internal fun tsSubtreeArrayClear(self: SubtreeArray) {
     self.clear()
 }
 
-fun tsSubtreeArrayDelete(self: SubtreeArray) {
+internal fun tsSubtreeArrayDelete(self: SubtreeArray) {
     self.clear()
 }
 
@@ -341,7 +341,7 @@ fun tsSubtreeArrayDelete(self: SubtreeArray) {
  * Move every trailing extra subtree off the end of [self] onto [destination], then reverse
  * [destination] so it reads in original order.
  */
-fun tsSubtreeArrayRemoveTrailingExtras(self: SubtreeArray, destination: SubtreeArray) {
+internal fun tsSubtreeArrayRemoveTrailingExtras(self: SubtreeArray, destination: SubtreeArray) {
     destination.clear()
     while (self.isNotEmpty()) {
         val last = self.last()
@@ -355,7 +355,7 @@ fun tsSubtreeArrayRemoveTrailingExtras(self: SubtreeArray, destination: SubtreeA
     tsSubtreeArrayReverse(destination)
 }
 
-fun tsSubtreeArrayReverse(self: SubtreeArray) {
+internal fun tsSubtreeArrayReverse(self: SubtreeArray) {
     val limit = self.size / 2
     for (i in 0 until limit) {
         val reverseIndex = self.size - 1 - i
@@ -365,14 +365,14 @@ fun tsSubtreeArrayReverse(self: SubtreeArray) {
     }
 }
 
-fun tsSubtreePoolNew(capacity: UInt): SubtreePool =
+internal fun tsSubtreePoolNew(capacity: UInt): SubtreePool =
     SubtreePool(freeTrees = ArrayList(capacity.toInt()), treeStack = ArrayList())
 
 /**
  * Does the subtree fit in the inline 24-byte representation? Faithful port of the size check
  * the C runtime uses to decide whether a newly created subtree can use [Subtree.Inline].
  */
-fun tsSubtreeCanInline(padding: Length, size: Length, lookaheadBytes: UInt): Boolean =
+internal fun tsSubtreeCanInline(padding: Length, size: Length, lookaheadBytes: UInt): Boolean =
     padding.bytes < TS_MAX_INLINE_TREE_LENGTH &&
         padding.extent.row < 16u &&
         padding.extent.column < TS_MAX_INLINE_TREE_LENGTH &&
@@ -387,7 +387,7 @@ fun tsSubtreeCanInline(padding: Length, size: Length, lookaheadBytes: UInt): Boo
  * builds a heap representation with the same fields. Faithful port of the `ts_subtree_new_leaf`
  * dispatch in lib/src/subtree.c.
  */
-fun tsSubtreeNewLeaf(
+internal fun tsSubtreeNewLeaf(
     symbol: TSSymbol,
     padding: Length,
     size: Length,
@@ -461,7 +461,7 @@ fun tsSubtreeNewLeaf(
  * symbol metadata. Inline subtrees enforce the symbol <= UByte.MAX_VALUE constraint that the C
  * runtime guards with `ts_assert`.
  */
-fun tsSubtreeSetSymbol(self: Subtree, symbol: TSSymbol, language: TSLanguage): Subtree {
+internal fun tsSubtreeSetSymbol(self: Subtree, symbol: TSSymbol, language: TSLanguage): Subtree {
     val metadata = tsLanguageSymbolMetadata(language, symbol)
     return when (self) {
         is Subtree.Inline -> {
@@ -497,7 +497,7 @@ fun tsSubtreeSetSymbol(self: Subtree, symbol: TSSymbol, language: TSLanguage): S
  * Construct an error leaf. Builds via [tsSubtreeNewLeaf] with the builtin error symbol, then
  * sets fragile_left/right and stamps the [lookaheadChar] onto the ErrorTerminal branch.
  */
-fun tsSubtreeNewError(
+internal fun tsSubtreeNewError(
     lookaheadChar: Int,
     padding: Length,
     size: Length,
@@ -583,7 +583,7 @@ private fun Subtree.Heap.copy(
  *
  * Returns -1 if [left] sorts before [right], 1 if after, 0 if structurally equal.
  */
-fun tsSubtreeCompare(left: Subtree, right: Subtree): Int {
+internal fun tsSubtreeCompare(left: Subtree, right: Subtree): Int {
     val workStack: MutableList<Subtree> = mutableListOf(left, right)
     while (workStack.isNotEmpty()) {
         val rightTop = workStack.removeAt(workStack.size - 1)
@@ -614,7 +614,7 @@ fun tsSubtreeCompare(left: Subtree, right: Subtree): Int {
  * the requested symbol and then flipped the `is_missing` flag. The Kotlin port preserves that
  * sequence with a small immutable rebuild for the inline variant.
  */
-fun tsSubtreeNewMissingLeaf(
+internal fun tsSubtreeNewMissingLeaf(
     symbol: TSSymbol,
     padding: Length,
     lookaheadBytes: UInt,
@@ -656,7 +656,7 @@ fun tsSubtreeNewMissingLeaf(
  * state. Returns null if [tree] has no external tokens at all. Mirrors the recursive walk in
  * `ts_subtree_last_external_token` (lib/src/subtree.c).
  */
-fun tsSubtreeLastExternalToken(tree: Subtree): Subtree? {
+internal fun tsSubtreeLastExternalToken(tree: Subtree): Subtree? {
     if (!tsSubtreeHasExternalTokens(tree)) return null
     var current: Subtree = tree
     while (current is Subtree.Heap && current.childCount > 0u) {

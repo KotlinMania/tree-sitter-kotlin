@@ -98,7 +98,7 @@ actual class QueryCursor internal constructor(
      *
      * Default: `Point.MIN..Point.MAX`
      */
-    actual var pointRange: ClosedRange<Point> = Point.MIN..Point.MAX
+    actual var pointRange: PointRange = Point.MIN..Point.MAX
         set(value) {
             require(nativeSetPointRange(value.start, value.endInclusive)) {
                 "Invalid point range: [${value.start}, ${value.endInclusive}]"

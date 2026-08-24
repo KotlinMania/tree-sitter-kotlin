@@ -63,7 +63,7 @@ expect class QueryCursor {
      *
      * @throws [IllegalArgumentException] If set to an invalid range.
      */
-    var pointRange: ClosedRange<Point>
+    var pointRange: PointRange
 
     /**
      * Check if the cursor exceeded its maximum number of

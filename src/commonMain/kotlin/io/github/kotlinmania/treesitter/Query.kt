@@ -103,7 +103,6 @@ expect class Query @Throws(QueryError::class) constructor(language: Language, so
      * @throws [IndexOutOfBoundsException]
      *  If the index exceeds the [pattern count][patternCount].
      */
-    @Throws(IndexOutOfBoundsException::class)
     fun startByteForPattern(index: UInt): UInt
 
     /**
@@ -113,7 +112,6 @@ expect class Query @Throws(QueryError::class) constructor(language: Language, so
      *  If the index exceeds the [pattern count][patternCount].
      * @since 0.23.0
      */
-    @Throws(IndexOutOfBoundsException::class)
     fun endByteForPattern(index: UInt): UInt
 
     /**
