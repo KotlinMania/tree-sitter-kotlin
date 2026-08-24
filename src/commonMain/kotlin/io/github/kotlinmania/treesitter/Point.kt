@@ -30,3 +30,20 @@ data class Point(
         val MAX = Point(UInt.MAX_VALUE, UInt.MAX_VALUE)
     }
 }
+
+/**
+ * A range of [Point]s representing a closed interval.
+ *
+ * @property start The minimum value in the range.
+ * @property endInclusive The maximum value in the range (inclusive).
+ */
+data class PointRange(
+    override val start: Point = Point.MIN,
+    override val endInclusive: Point = Point.MAX,
+) : ClosedRange<Point>
+
+/**
+ * Creates a range from this [Point] value to the specified [that] value.
+ */
+operator fun Point.rangeTo(that: Point): PointRange = PointRange(this, that)
+

@@ -339,7 +339,6 @@ actual class Query @Throws(QueryError::class) actual constructor(
      *  If the index exceeds the [pattern count][patternCount].
      */
     @JvmName("startByteForPattern")
-    @Throws(IndexOutOfBoundsException::class)
     actual external fun startByteForPattern(index: UInt): UInt
 
     /**
@@ -350,7 +349,6 @@ actual class Query @Throws(QueryError::class) actual constructor(
      * @since 0.23.0
      */
     @JvmName("endByteForPattern")
-    @Throws(IndexOutOfBoundsException::class)
     actual external fun endByteForPattern(index: UInt): UInt
 
     /**

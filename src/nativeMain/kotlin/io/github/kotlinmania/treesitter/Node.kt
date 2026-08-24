@@ -336,7 +336,6 @@ actual class Node internal constructor(
      * will already reflect the edit. You only need to use this when you have a
      * specific Node instance that you want to keep and continue to use after an edit.
      */
-    @ExperimentalMultiplatform
     actual fun edit(edit: InputEdit) {
         val inputEdit = cValue<TSInputEdit> { from(edit) }
         val arena = Arena()

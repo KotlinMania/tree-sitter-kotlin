@@ -1,34 +1,30 @@
 // port-lint: source include/tree_sitter/api.h
-@file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
-
 package io.github.kotlinmania.treesitter.lib
 
-import kotlin.native.HiddenFromObjC
+internal typealias TSStateId = UShort
+internal typealias TSSymbol = UShort
+internal typealias TSFieldId = UShort
 
-typealias TSStateId = UShort
-typealias TSSymbol = UShort
-typealias TSFieldId = UShort
-
-enum class TSInputEncoding {
+internal enum class TSInputEncoding {
     UTF8,
     UTF16LE,
     UTF16BE,
     Custom,
 }
 
-enum class TSSymbolType {
+internal enum class TSSymbolType {
     Regular,
     Anonymous,
     Supertype,
     Auxiliary,
 }
 
-enum class TSLogType {
+internal enum class TSLogType {
     Parse,
     Lex,
 }
 
-enum class TSQuantifier(val raw: UInt) {
+internal enum class TSQuantifier(val raw: UInt) {
     Zero(0u),
     ZeroOrOne(1u),
     ZeroOrMore(2u),
@@ -36,13 +32,13 @@ enum class TSQuantifier(val raw: UInt) {
     OneOrMore(4u),
 }
 
-enum class TSQueryPredicateStepType {
+internal enum class TSQueryPredicateStepType {
     Done,
     Capture,
     String,
 }
 
-enum class TSQueryError(val raw: UInt) {
+internal enum class TSQueryError(val raw: UInt) {
     None(0u),
     Syntax(1u),
     NodeType(2u),
@@ -52,16 +48,16 @@ enum class TSQueryError(val raw: UInt) {
     Language(6u),
 }
 
-data class TSPoint(val row: UInt, val column: UInt)
+internal data class TSPoint(val row: UInt, val column: UInt)
 
-data class TSRange(
+internal data class TSRange(
     val startPoint: TSPoint,
     val endPoint: TSPoint,
     val startByte: UInt,
     val endByte: UInt,
 )
 
-data class TSInputEdit(
+internal data class TSInputEdit(
     val startByte: UInt,
     val oldEndByte: UInt,
     val newEndByte: UInt,
@@ -75,8 +71,7 @@ data class TSInputEdit(
  * starting at offset 0, returning the number of bytes consumed. The decoded code point is
  * written to [codePoint] (index 0), or [TS_DECODE_ERROR] for an invalid sequence.
  */
-@HiddenFromObjC
-fun interface DecodeFunction {
+internal fun interface DecodeFunction {
     operator fun invoke(string: ByteArray, length: UInt, codePoint: IntArray): UInt
 }
 
@@ -84,44 +79,37 @@ fun interface DecodeFunction {
  * Callback signature for [TSInput.read]: return the next chunk of source bytes at the requested
  * byte index / position. An empty result signals end-of-input.
  */
-@HiddenFromObjC
-fun interface TSInputReadFn {
+internal fun interface TSInputReadFn {
     operator fun invoke(payload: Any?, byteIndex: UInt, position: TSPoint): ByteArray
 }
 
-@HiddenFromObjC
-class TSInput(
+internal class TSInput(
     val payload: Any?,
     val read: TSInputReadFn,
     val encoding: TSInputEncoding,
     val decode: DecodeFunction? = null,
 )
 
-@HiddenFromObjC
-class TSParseState(
+internal class TSParseState(
     val payload: Any?,
     val currentByteOffset: UInt,
     val hasError: Boolean,
 )
 
-@HiddenFromObjC
-fun interface TSParseProgressCallback {
+internal fun interface TSParseProgressCallback {
     operator fun invoke(state: TSParseState): Boolean
 }
 
-@HiddenFromObjC
-class TSParseOptions(
+internal class TSParseOptions(
     val payload: Any?,
     val progressCallback: TSParseProgressCallback? = null,
 )
 
-@HiddenFromObjC
-fun interface TSLoggerLogFn {
+internal fun interface TSLoggerLogFn {
     operator fun invoke(payload: Any?, logType: TSLogType, buffer: String)
 }
 
-@HiddenFromObjC
-class TSLogger(
+internal class TSLogger(
     val payload: Any?,
     val log: TSLoggerLogFn,
 )
@@ -131,19 +119,17 @@ class TSLogger(
  * pointer; the Kotlin port preserves the same shape with the id as the Subtree reference the
  * node points at and the context array as a [UIntArray] of length 4.
  */
-@HiddenFromObjC
-class TSNode internal constructor(
+internal class TSNode internal constructor(
     val context: UIntArray,
     val subtree: Subtree,
     val tree: TSTree,
 )
 
-@HiddenFromObjC
-class TSQueryCapture(val node: TSNode, val index: UInt)
+internal class TSQueryCapture(val node: TSNode, val index: UInt)
 
-@HiddenFromObjC
-class TSQueryMatch(
+internal class TSQueryMatch(
     val id: UInt,
     val patternIndex: UShort,
     val captures: List<TSQueryCapture>,
 )
+

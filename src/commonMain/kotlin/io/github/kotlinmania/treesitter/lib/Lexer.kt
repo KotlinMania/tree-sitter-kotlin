@@ -1,7 +1,7 @@
 // port-lint: source lib/src/lexer.h
 package io.github.kotlinmania.treesitter.lib
 
-data class ColumnData(val value: UInt, val valid: Boolean)
+internal data class ColumnData(val value: UInt, val valid: Boolean)
 
 /**
  * Internal lexer state held by the parser engine. The C runtime stored this as a struct
@@ -10,7 +10,7 @@ data class ColumnData(val value: UInt, val valid: Boolean)
  * debug serialization buffer). The Kotlin port mirrors every field, keeping mutability for the
  * positions and indices that the parser updates in place.
  */
-class Lexer internal constructor(
+internal class Lexer internal constructor(
     val data: TSLexer,
     var currentPosition: Length,
     var tokenStartPosition: Length,

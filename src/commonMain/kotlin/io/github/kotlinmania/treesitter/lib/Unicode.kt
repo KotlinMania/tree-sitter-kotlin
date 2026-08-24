@@ -1,7 +1,7 @@
 // port-lint: source lib/src/unicode.h
 package io.github.kotlinmania.treesitter.lib
 
-const val TS_DECODE_ERROR: Int = -1
+internal const val TS_DECODE_ERROR: Int = -1
 
 /**
  * Decode the next UTF-8 code point from [string] starting at byte [offset]. Returns the number
@@ -9,7 +9,7 @@ const val TS_DECODE_ERROR: Int = -1
  * sequence the code point is set to [TS_DECODE_ERROR] and the byte count is the length of the
  * malformed unit (1, 2, or 3) so the lexer can advance past it.
  */
-fun tsDecodeUtf8(
+internal fun tsDecodeUtf8(
     string: ByteArray,
     length: UInt,
     offset: UInt,
@@ -101,7 +101,7 @@ private fun supplementaryFromSurrogates(high: Int, low: Int): Int =
  * Returns the number of bytes consumed (2 or 4); the decoded code point is written to
  * [codePoint] (index 0).
  */
-fun tsDecodeUtf16Le(
+internal fun tsDecodeUtf16Le(
     string: ByteArray,
     length: UInt,
     offset: UInt,
@@ -129,7 +129,7 @@ fun tsDecodeUtf16Le(
  * the number of bytes consumed (2 or 4); the decoded code point is written to [codePoint]
  * (index 0).
  */
-fun tsDecodeUtf16Be(
+internal fun tsDecodeUtf16Be(
     string: ByteArray,
     length: UInt,
     offset: UInt,

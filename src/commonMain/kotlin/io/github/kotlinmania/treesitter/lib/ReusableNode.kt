@@ -1,31 +1,31 @@
 // port-lint: source lib/src/reusable_node.h
 package io.github.kotlinmania.treesitter.lib
 
-data class StackEntry(
+internal data class StackEntry(
     val tree: Subtree,
     val childIndex: UInt,
     val byteOffset: UInt,
 )
 
-class ReusableNode {
+internal class ReusableNode {
     val stack: MutableList<StackEntry> = mutableListOf()
     var lastExternalToken: Subtree? = null
 }
 
-fun reusableNodeNew(): ReusableNode = ReusableNode()
+internal fun reusableNodeNew(): ReusableNode = ReusableNode()
 
-fun reusableNodeClear(self: ReusableNode) {
+internal fun reusableNodeClear(self: ReusableNode) {
     self.stack.clear()
     self.lastExternalToken = null
 }
 
-fun reusableNodeTree(self: ReusableNode): Subtree? =
+internal fun reusableNodeTree(self: ReusableNode): Subtree? =
     if (self.stack.isNotEmpty()) self.stack.last().tree else null
 
-fun reusableNodeByteOffset(self: ReusableNode): UInt =
+internal fun reusableNodeByteOffset(self: ReusableNode): UInt =
     if (self.stack.isNotEmpty()) self.stack.last().byteOffset else UInt.MAX_VALUE
 
-fun reusableNodeAdvance(self: ReusableNode) {
+internal fun reusableNodeAdvance(self: ReusableNode) {
     val lastEntry = self.stack.last()
     val byteOffset = lastEntry.byteOffset + tsSubtreeTotalBytes(lastEntry.tree)
     if (tsSubtreeHasExternalTokens(lastEntry.tree)) {
@@ -50,7 +50,7 @@ fun reusableNodeAdvance(self: ReusableNode) {
     )
 }
 
-fun reusableNodeDescend(self: ReusableNode): Boolean {
+internal fun reusableNodeDescend(self: ReusableNode): Boolean {
     val lastEntry = self.stack.last()
     return if (tsSubtreeChildCount(lastEntry.tree) > 0u) {
         self.stack.add(
@@ -66,12 +66,12 @@ fun reusableNodeDescend(self: ReusableNode): Boolean {
     }
 }
 
-fun reusableNodeAdvancePastLeaf(self: ReusableNode) {
+internal fun reusableNodeAdvancePastLeaf(self: ReusableNode) {
     while (reusableNodeDescend(self)) {}
     reusableNodeAdvance(self)
 }
 
-fun reusableNodeReset(self: ReusableNode, tree: Subtree) {
+internal fun reusableNodeReset(self: ReusableNode, tree: Subtree) {
     reusableNodeClear(self)
     self.stack.add(StackEntry(tree = tree, childIndex = 0u, byteOffset = 0u))
 
