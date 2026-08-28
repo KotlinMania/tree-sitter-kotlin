@@ -6,6 +6,9 @@ build/
 *.jar
 *.war
 *.ear
+*.o
+*.a
+*.tmp
 
 # Keep the Gradle wrapper jar checked in so CI can run `./gradlew`.
 !gradle/wrapper/gradle-wrapper.jar
