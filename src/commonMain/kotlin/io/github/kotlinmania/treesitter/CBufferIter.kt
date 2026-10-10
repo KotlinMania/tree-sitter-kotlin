@@ -9,8 +9,8 @@ import kotlin.native.HiddenFromObjC
 class CBufferIter<T> internal constructor(
     private val items: List<T>,
     private val release: (() -> Unit)? = null,
-) : Iterator<T>, AutoCloseable {
-
+) : Iterator<T>,
+    AutoCloseable {
     private var index: Int = 0
     private var closed: Boolean = false
 

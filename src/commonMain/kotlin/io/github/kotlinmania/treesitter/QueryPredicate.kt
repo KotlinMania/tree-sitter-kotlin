@@ -14,7 +14,9 @@ package io.github.kotlinmania.treesitter
  * @property name The name of the predicate.
  * @property args The arguments given to the predicate.
  */
-sealed class QueryPredicate(val name: String) {
+sealed class QueryPredicate(
+    val name: String,
+) {
     abstract val args: List<QueryPredicateArg>
 
     internal abstract operator fun invoke(match: QueryMatch): Boolean
@@ -26,12 +28,13 @@ sealed class QueryPredicate(val name: String) {
         private val capture: String,
         private val value: String,
         private val isPositive: Boolean,
-        private val isAny: Boolean
+        private val isAny: Boolean,
     ) : QueryPredicate(name) {
-        override val args = listOf(
-            QueryPredicateArg.Capture(capture),
-            QueryPredicateArg.Capture(value)
-        )
+        override val args =
+            listOf(
+                QueryPredicateArg.Capture(capture),
+                QueryPredicateArg.Capture(value),
+            )
 
         override fun invoke(match: QueryMatch): Boolean {
             val nodes1 = match[capture]
@@ -51,12 +54,13 @@ sealed class QueryPredicate(val name: String) {
         private val capture: String,
         private val value: String,
         private val isPositive: Boolean,
-        private val isAny: Boolean
+        private val isAny: Boolean,
     ) : QueryPredicate(name) {
-        override val args = listOf(
-            QueryPredicateArg.Capture(capture),
-            QueryPredicateArg.Literal(value)
-        )
+        override val args =
+            listOf(
+                QueryPredicateArg.Capture(capture),
+                QueryPredicateArg.Literal(value),
+            )
 
         override fun invoke(match: QueryMatch): Boolean {
             val nodes = match[capture]
@@ -74,12 +78,13 @@ sealed class QueryPredicate(val name: String) {
         private val capture: String,
         private val pattern: Regex,
         private val isPositive: Boolean,
-        private val isAny: Boolean
+        private val isAny: Boolean,
     ) : QueryPredicate(name) {
-        override val args = listOf(
-            QueryPredicateArg.Capture(capture),
-            QueryPredicateArg.Literal(pattern.pattern)
-        )
+        override val args =
+            listOf(
+                QueryPredicateArg.Capture(capture),
+                QueryPredicateArg.Literal(pattern.pattern),
+            )
 
         override fun invoke(match: QueryMatch): Boolean {
             val nodes = match[capture]
@@ -96,12 +101,16 @@ sealed class QueryPredicate(val name: String) {
         name: String,
         private val capture: String,
         private val value: List<String>,
-        private val isPositive: Boolean
+        private val isPositive: Boolean,
     ) : QueryPredicate(name) {
-        override val args = List(value.size + 1) {
-            if (it == 0) QueryPredicateArg.Capture(capture)
-            else QueryPredicateArg.Literal(value[it - 1])
-        }
+        override val args =
+            List(value.size + 1) {
+                if (it == 0) {
+                    QueryPredicateArg.Capture(capture)
+                } else {
+                    QueryPredicateArg.Literal(value[it - 1])
+                }
+            }
 
         override fun invoke(match: QueryMatch) =
             match[capture].none { (it.text()!! in value) != isPositive }
@@ -109,7 +118,7 @@ sealed class QueryPredicate(val name: String) {
 
     internal class Generic(
         name: String,
-        override val args: List<QueryPredicateArg>
+        override val args: List<QueryPredicateArg>,
     ) : QueryPredicate(name) {
         override fun invoke(match: QueryMatch) = true
     }

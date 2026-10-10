@@ -1,7 +1,10 @@
 // port-lint: source lib/src/length.h
 package io.github.kotlinmania.treesitter.lib
 
-internal data class Length(val bytes: UInt, val extent: Point) {
+internal data class Length(
+    val bytes: UInt,
+    val extent: Point,
+) {
     companion object {
         val UNDEFINED: Length = Length(0u, Point(0u, 1u))
         val MAX: Length = Length(UInt.MAX_VALUE, Point(UInt.MAX_VALUE, UInt.MAX_VALUE))

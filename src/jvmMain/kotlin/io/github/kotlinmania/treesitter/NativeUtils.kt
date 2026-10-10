@@ -33,16 +33,18 @@ internal object NativeUtils {
                 throw UnsupportedOperationException("Unsupported operating system: $osName")
             }
         }
-        val arch = when {
-            "amd64" in archName || "x86_64" in archName -> "x64"
-            "aarch64" in archName || "arm64" in archName -> "aarch64"
-            else -> throw UnsupportedOperationException("Unsupported architecture: $archName")
-        }
+        val arch =
+            when {
+                "amd64" in archName || "x86_64" in archName -> "x64"
+                "aarch64" in archName || "arm64" in archName -> "aarch64"
+                else -> throw UnsupportedOperationException("Unsupported architecture: $archName")
+            }
         val libUrl = javaClass.getResource("/lib/$os/$arch/$prefix$LIB_NAME.$ext") ?: return null
-        return createTempFile("$prefix$LIB_NAME", ".$ext").apply {
-            writeBytes(libUrl.openStream().use { it.readAllBytes() })
-            deleteOnExit()
-        }.path
+        return createTempFile("$prefix$LIB_NAME", ".$ext")
+            .apply {
+                writeBytes(libUrl.openStream().use { it.readAllBytes() })
+                deleteOnExit()
+            }.path
     }
 
     @JvmStatic

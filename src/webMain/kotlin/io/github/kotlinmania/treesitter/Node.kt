@@ -38,10 +38,15 @@ actual class Node internal constructor() {
     actual fun namedChild(index: UInt): Node? = null
 
     actual fun firstChildForByte(byte: UInt): Node? = null
+
     actual fun firstNamedChildForByte(byte: UInt): Node? = null
+
     actual fun childByFieldId(id: UShort): Node? = null
+
     actual fun childByFieldName(name: String): Node? = null
+
     actual fun childrenByFieldId(id: UShort): List<Node> = emptyList()
+
     actual fun childrenByFieldName(name: String): List<Node> = emptyList()
 
     @Throws(IndexOutOfBoundsException::class)
@@ -51,15 +56,24 @@ actual class Node internal constructor() {
     actual fun fieldNameForNamedChild(index: UInt): String? = null
 
     actual fun childWithDescendant(descendant: Node): Node? = null
+
     actual fun descendant(start: UInt, end: UInt): Node? = null
+
     actual fun descendant(start: Point, end: Point): Node? = null
+
     actual fun namedDescendant(start: UInt, end: UInt): Node? = null
+
     actual fun namedDescendant(start: Point, end: Point): Node? = null
+
     actual fun edit(edit: InputEdit) {}
+
     actual fun walk(): TreeCursor = throw UnsupportedOperationException("Tree-sitter is not supported on Web")
+
     actual fun text(): CharSequence? = null
+
     actual fun sexp(): String = ""
 
     actual override fun equals(other: Any?): Boolean = other is Node
+
     actual override fun hashCode(): Int = 0
 }

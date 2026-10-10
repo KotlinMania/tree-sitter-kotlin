@@ -99,6 +99,6 @@ expect class QueryCursor {
      * @param predicate A function that handles custom predicates.
      */
     fun captures(
-        predicate: QueryPredicate.(QueryMatch) -> Boolean = { true }
+        predicate: QueryPredicate.(QueryMatch) -> Boolean = { true },
     ): Sequence<Pair<UInt, QueryMatch>>
 }

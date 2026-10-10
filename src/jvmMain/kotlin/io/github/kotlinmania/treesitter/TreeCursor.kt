@@ -3,7 +3,7 @@ package io.github.kotlinmania.treesitter
 /** A class that can be used to efficiently walk a [syntax tree][Tree]. */
 actual class TreeCursor private constructor(
     private val self: Long,
-    @JvmField internal actual val tree: Tree
+    @JvmField internal actual val tree: Tree,
 ) {
     internal constructor(node: Node) : this(init(node), node.tree) {
         internalNode = node
@@ -156,7 +156,9 @@ actual class TreeCursor private constructor(
     @JvmName("nativeGotoFirstChildForPoint")
     private external fun nativeGotoFirstChildForPoint(point: Point): Long
 
-    private class CleanAction(private val ptr: Long) : Runnable {
+    private class CleanAction(
+        private val ptr: Long,
+    ) : Runnable {
         override fun run() = delete(ptr)
     }
 

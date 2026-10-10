@@ -10,5 +10,5 @@ data class InputEdit(
     @get:JvmName("newEndByte") val newEndByte: UInt,
     @get:JvmName("startPoint") val startPoint: Point,
     @get:JvmName("oldEndPoint") val oldEndPoint: Point,
-    @get:JvmName("newEndPoint") val newEndPoint: Point
+    @get:JvmName("newEndPoint") val newEndPoint: Point,
 )

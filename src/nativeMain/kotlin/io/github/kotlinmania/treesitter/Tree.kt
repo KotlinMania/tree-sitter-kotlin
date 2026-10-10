@@ -2,9 +2,9 @@ package io.github.kotlinmania.treesitter
 
 import cnames.structs.TSTree
 import io.github.kotlinmania.treesitter.internal.*
+import kotlinx.cinterop.*
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.ref.createCleaner
-import kotlinx.cinterop.*
 
 /** A class that represents a syntax tree. */
 @OptIn(ExperimentalForeignApi::class)
@@ -12,7 +12,7 @@ actual class Tree internal constructor(
     internal val self: CPointer<TSTree>,
     private var source: String?,
     /** The language that was used to parse the syntax tree. */
-    actual val language: Language
+    actual val language: Language,
 ) {
     @Suppress("unused")
     @OptIn(ExperimentalNativeApi::class)
@@ -74,14 +74,15 @@ actual class Tree internal constructor(
      *
      * @return A list of ranges whose syntactic structure has changed.
      */
-    actual fun changedRanges(newTree: Tree): List<Range> = memScoped {
-        val length = alloc<UIntVar>()
-        val ranges = ts_tree_get_changed_ranges(self, newTree.self, length.ptr)
-        if (length.value == 0U || ranges == null) return emptyList()
-        val result = List(length.value.convert()) { ranges[it].convert() }
-        kts_free(ranges)
-        return result
-    }
+    actual fun changedRanges(newTree: Tree): List<Range> =
+        memScoped {
+            val length = alloc<UIntVar>()
+            val ranges = ts_tree_get_changed_ranges(self, newTree.self, length.ptr)
+            if (length.value == 0U || ranges == null) return emptyList()
+            val result = List(length.value.convert()) { ranges[it].convert() }
+            kts_free(ranges)
+            return result
+        }
 
     override fun toString() = "Tree(language=$language, source=$source)"
 }

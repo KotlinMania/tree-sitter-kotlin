@@ -13,7 +13,7 @@ actual class Tree internal constructor(
     private val self: Long,
     private var source: String?,
     /** The language that was used to parse the syntax tree. */
-    actual val language: Language
+    actual val language: Language,
 ) : AutoCloseable {
     init {
         RefCleaner(this, CleanAction(self))
@@ -72,7 +72,9 @@ actual class Tree internal constructor(
 
     private external fun nativeIncludedRanges(): List<Range>
 
-    private class CleanAction(private val ptr: Long) : Runnable {
+    private class CleanAction(
+        private val ptr: Long,
+    ) : Runnable {
         override fun run() = delete(ptr)
     }
 

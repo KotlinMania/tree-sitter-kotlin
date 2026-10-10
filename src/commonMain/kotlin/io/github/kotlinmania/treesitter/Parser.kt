@@ -87,7 +87,7 @@ expect class Parser() {
     fun parse(
         source: String,
         encoding: InputEncoding = InputEncoding.UTF_8,
-        oldTree: Tree? = null
+        oldTree: Tree? = null,
     ): Tree
 
     /**
@@ -107,7 +107,7 @@ expect class Parser() {
         encoding: InputEncoding = InputEncoding.UTF_8,
         oldTree: Tree? = null,
         progressCallback: ParseProgressCallback? = null,
-        readCallback: ParseReadCallback
+        readCallback: ParseReadCallback,
     ): Tree
 
     /**

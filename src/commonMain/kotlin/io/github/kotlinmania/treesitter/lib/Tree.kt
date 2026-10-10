@@ -27,11 +27,12 @@ internal fun tsTreeNew(
     root: Subtree,
     language: TSLanguage,
     includedRanges: List<TSRange>,
-): TSTree = TSTree(
-    root = root,
-    language = language,
-    includedRanges = includedRanges.toMutableList(),
-)
+): TSTree =
+    TSTree(
+        root = root,
+        language = language,
+        includedRanges = includedRanges.toMutableList(),
+    )
 
 internal fun tsTreeCopy(self: TSTree): TSTree =
     tsTreeNew(self.root, self.language, self.includedRanges)

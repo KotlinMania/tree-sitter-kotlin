@@ -46,11 +46,15 @@ expect class LookaheadIterator : AbstractIterator<LookaheadIterator.Symbol> {
     override fun computeNext()
 
     /** A class that pairs a symbol ID with its name. */
-    class Symbol(id: UShort, name: String) {
+    class Symbol(
+        id: UShort,
+        name: String,
+    ) {
         val id: UShort
         val name: String
 
         operator fun component1(): UShort
+
         operator fun component2(): String
     }
 }

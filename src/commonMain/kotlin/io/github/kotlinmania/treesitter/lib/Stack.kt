@@ -5,7 +5,10 @@ internal typealias StackVersion = UInt
 
 internal val STACK_VERSION_NONE: StackVersion = UInt.MAX_VALUE
 
-internal data class StackSlice(val subtrees: List<Subtree>, val version: StackVersion)
+internal data class StackSlice(
+    val subtrees: List<Subtree>,
+    val version: StackVersion,
+)
 
 internal typealias StackSliceArray = List<StackSlice>
 

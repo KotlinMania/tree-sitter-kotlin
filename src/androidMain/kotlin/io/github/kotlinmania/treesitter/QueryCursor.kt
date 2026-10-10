@@ -14,7 +14,7 @@ import dalvik.annotation.optimization.FastNative
 actual class QueryCursor internal constructor(
     private val query: Query,
     private val node: Node,
-    progressCallback: QueryProgressCallback? = null
+    progressCallback: QueryProgressCallback? = null,
 ) : AutoCloseable {
     private val self: Long = init()
 
@@ -133,14 +133,15 @@ actual class QueryCursor internal constructor(
      * @param predicate A function that handles custom predicates.
      */
     @JvmOverloads
-    actual fun matches(predicate: QueryPredicate.(QueryMatch) -> Boolean) = sequence<QueryMatch> {
-        var match = nextMatch(query.captureNames, node.tree)
-        while (match != null) {
-            val result = match.check(predicate)
-            if (result != null) yield(result)
-            match = nextMatch(query.captureNames, node.tree)
+    actual fun matches(predicate: QueryPredicate.(QueryMatch) -> Boolean) =
+        sequence<QueryMatch> {
+            var match = nextMatch(query.captureNames, node.tree)
+            while (match != null) {
+                val result = match.check(predicate)
+                if (result != null) yield(result)
+                match = nextMatch(query.captureNames, node.tree)
+            }
         }
-    }
 
     /**
      * Iterate over all the individual captures in the order that they appear.
@@ -177,23 +178,26 @@ actual class QueryCursor internal constructor(
     @FastNative
     private external fun nextCapture(
         captureNames: List<String>,
-        tree: Tree
+        tree: Tree,
     ): Pair<UInt, QueryMatch>?
 
     @FastNative
     private external fun exec(query: Long, node: Node, progressCallback: QueryProgressCallback?)
 
     private inline fun QueryMatch.check(
-        predicate: QueryPredicate.(QueryMatch) -> Boolean
+        predicate: QueryPredicate.(QueryMatch) -> Boolean,
     ): QueryMatch? {
         if (node.tree.text() == null) return this
-        val result = query.predicates[patternIndex.toInt()].all {
-            if (it !is QueryPredicate.Generic) it(this) else predicate(it, this)
-        }
+        val result =
+            query.predicates[patternIndex.toInt()].all {
+                if (it !is QueryPredicate.Generic) it(this) else predicate(it, this)
+            }
         return if (result) this else null
     }
 
-    private class CleanAction(private val ptr: Long) : Runnable {
+    private class CleanAction(
+        private val ptr: Long,
+    ) : Runnable {
         override fun run() = delete(ptr)
     }
 

@@ -74,8 +74,9 @@ internal fun tsDecodeUtf8(
                 codePoint[0] = TS_DECODE_ERROR
                 return 1u
             }
-            val cp = (b0 and 0x07 shl 18) or (b1 and 0x3F shl 12) or
-                (b2 and 0x3F shl 6) or (b3 and 0x3F)
+            val cp =
+                (b0 and 0x07 shl 18) or (b1 and 0x3F shl 12) or
+                    (b2 and 0x3F shl 6) or (b3 and 0x3F)
             if (cp !in 0x10000..0x10FFFF) {
                 codePoint[0] = TS_DECODE_ERROR
                 return 1u
@@ -91,6 +92,7 @@ internal fun tsDecodeUtf8(
 }
 
 private fun isHighSurrogate(unit: Int): Boolean = unit in 0xD800..0xDBFF
+
 private fun isLowSurrogate(unit: Int): Boolean = unit in 0xDC00..0xDFFF
 
 private fun supplementaryFromSurrogates(high: Int, low: Int): Int =

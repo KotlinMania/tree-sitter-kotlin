@@ -5,9 +5,8 @@ package io.github.kotlinmania.treesitter
 actual class Node internal constructor(
     id: Long,
     private var context: IntArray,
-    @JvmField internal val tree: Tree
+    @JvmField internal val tree: Tree,
 ) {
-
     /**
      * The numeric ID of the node.
      *
@@ -309,9 +308,10 @@ actual class Node internal constructor(
     actual fun walk() = TreeCursor(this)
 
     /** Get the source code of the node, if available. */
-    actual fun text() = tree.text()?.run {
-        subSequence(startByte.toInt(), minOf(endByte.toInt(), length))
-    }
+    actual fun text() =
+        tree.text()?.run {
+            subSequence(startByte.toInt(), minOf(endByte.toInt(), length))
+        }
 
     /** Get the S-expression of the node. */
     actual external fun sexp(): String
