@@ -1,36 +1,42 @@
 package io.github.kotlinmania.treesitter
 
-actual class Query @Throws(QueryError::class) actual constructor(language: Language, source: String) {
-    actual val patternCount: UInt get() = 0u
-    @Deprecated("captureCount is deprecated.", ReplaceWith("captureNames.size"))
-    actual val captureCount: UInt get() = 0u
-    actual val captureNames: List<String> get() = emptyList()
-    actual val stringValues: List<String> get() = emptyList()
+actual class Query
+    @Throws(QueryError::class)
+    actual constructor(
+        language: Language,
+        source: String,
+    ) {
+        actual val patternCount: UInt get() = 0u
 
-    actual operator fun invoke(node: Node, progressCallback: QueryProgressCallback?): QueryCursor =
-        throw UnsupportedOperationException("Tree-sitter is not supported on Web")
+        @Deprecated("captureCount is deprecated.", ReplaceWith("captureNames.size"))
+        actual val captureCount: UInt get() = 0u
+        actual val captureNames: List<String> get() = emptyList()
+        actual val stringValues: List<String> get() = emptyList()
 
-    actual fun settings(index: UInt): Map<String, String?> = emptyMap()
+        actual operator fun invoke(node: Node, progressCallback: QueryProgressCallback?): QueryCursor =
+            throw UnsupportedOperationException("Tree-sitter is not supported on Web")
 
-    @Throws(IndexOutOfBoundsException::class)
-    actual fun assertions(index: UInt): Map<String, Pair<String?, Boolean>> = emptyMap()
+        actual fun settings(index: UInt): Map<String, String?> = emptyMap()
 
-    @Throws(IndexOutOfBoundsException::class)
-    actual fun disablePattern(index: UInt) {}
+        @Throws(IndexOutOfBoundsException::class)
+        actual fun assertions(index: UInt): Map<String, Pair<String?, Boolean>> = emptyMap()
 
-    actual fun disableCapture(name: String) {}
+        @Throws(IndexOutOfBoundsException::class)
+        actual fun disablePattern(index: UInt) {}
 
-    actual fun startByteForPattern(index: UInt): UInt = 0u
+        actual fun disableCapture(name: String) {}
 
-    @Throws(IndexOutOfBoundsException::class)
-    actual fun endByteForPattern(index: UInt): UInt = 0u
+        actual fun startByteForPattern(index: UInt): UInt = 0u
 
-    @Throws(IndexOutOfBoundsException::class)
-    actual fun isPatternRooted(index: UInt): Boolean = false
+        @Throws(IndexOutOfBoundsException::class)
+        actual fun endByteForPattern(index: UInt): UInt = 0u
 
-    @Throws(IndexOutOfBoundsException::class)
-    actual fun isPatternNonLocal(index: UInt): Boolean = false
+        @Throws(IndexOutOfBoundsException::class)
+        actual fun isPatternRooted(index: UInt): Boolean = false
 
-    @Throws(IndexOutOfBoundsException::class)
-    actual fun isPatternGuaranteedAtStep(offset: UInt): Boolean = false
-}
+        @Throws(IndexOutOfBoundsException::class)
+        actual fun isPatternNonLocal(index: UInt): Boolean = false
+
+        @Throws(IndexOutOfBoundsException::class)
+        actual fun isPatternGuaranteedAtStep(offset: UInt): Boolean = false
+    }

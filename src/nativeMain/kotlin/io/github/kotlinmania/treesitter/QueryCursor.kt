@@ -1,9 +1,9 @@
 package io.github.kotlinmania.treesitter
 
 import io.github.kotlinmania.treesitter.internal.*
+import kotlinx.cinterop.*
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.ref.createCleaner
-import kotlinx.cinterop.*
 
 /**
  * A class that is used for executing a query.
@@ -14,7 +14,7 @@ import kotlinx.cinterop.*
 actual class QueryCursor internal constructor(
     private val query: Query,
     private val node: Node,
-    progressCallback: QueryProgressCallback? = null
+    progressCallback: QueryProgressCallback? = null,
 ) {
     internal val self = ts_query_cursor_new()!!
 
@@ -23,14 +23,19 @@ actual class QueryCursor internal constructor(
             ts_query_cursor_exec(self, query.self, node.self)
         } else {
             val progressRef = StableRef.create(progressCallback)
-            val options = cValue<TSQueryCursorOptions> {
-                payload = progressRef.asCPointer()
-                progress_callback = staticCFunction { state ->
-                    val callback = state!!.pointed.payload!!
-                        .asStableRef<QueryProgressCallback>().get()
-                    callback(state.pointed.current_byte_offset)
+            val options =
+                cValue<TSQueryCursorOptions> {
+                    payload = progressRef.asCPointer()
+                    progress_callback =
+                        staticCFunction { state ->
+                            val callback =
+                                state!!
+                                    .pointed.payload!!
+                                    .asStableRef<QueryProgressCallback>()
+                                    .get()
+                            callback(state.pointed.current_byte_offset)
+                        }
                 }
-            }
             ts_query_cursor_exec_with_options(self, query.self, node.self, options)
             progressRef.dispose()
         }
@@ -150,14 +155,15 @@ actual class QueryCursor internal constructor(
      *
      * @param predicate A function that handles custom predicates.
      */
-    actual fun matches(predicate: QueryPredicate.(QueryMatch) -> Boolean) = sequence<QueryMatch> {
-        memScoped {
-            val match = alloc<TSQueryMatch>()
-            while (ts_query_cursor_next_match(self, match.ptr)) {
-                match.convert(predicate)?.let { yield(it) }
+    actual fun matches(predicate: QueryPredicate.(QueryMatch) -> Boolean) =
+        sequence<QueryMatch> {
+            memScoped {
+                val match = alloc<TSQueryMatch>()
+                while (ts_query_cursor_next_match(self, match.ptr)) {
+                    match.convert(predicate)?.let { yield(it) }
+                }
             }
         }
-    }
 
     /**
      * Iterate over all the individual captures in the order that they appear.
@@ -180,16 +186,17 @@ actual class QueryCursor internal constructor(
     override fun toString() = "QueryCursor(query=$query, node=$node)"
 
     private fun TSQueryMatch.convert(
-        predicate: QueryPredicate.(QueryMatch) -> Boolean
+        predicate: QueryPredicate.(QueryMatch) -> Boolean,
     ): QueryMatch? {
         val index = pattern_index.convert<UInt>()
-        val captures = (UShort.MIN_VALUE..<capture_count).map {
-            val c = captures!![it.convert<Long>()]
-            QueryCapture(
-                Node(c.node.readValue(), node.tree),
-                query.captureNames[c.index.toInt()]
-            )
-        }
+        val captures =
+            (UShort.MIN_VALUE..<capture_count).map {
+                val c = captures!![it.convert<Long>()]
+                QueryCapture(
+                    Node(c.node.readValue(), node.tree),
+                    query.captureNames[c.index.toInt()],
+                )
+            }
         return QueryMatch(index, captures).takeIf { match ->
             node.tree.text() == null ||
                 query.predicates[index.toInt()].all {

@@ -7,7 +7,7 @@ import kotlinx.cinterop.*
 @OptIn(ExperimentalForeignApi::class)
 actual class Node internal constructor(
     internal val self: CValue<TSNode>,
-    internal val tree: Tree
+    internal val tree: Tree,
 ) {
     /**
      * The numeric ID of the node.
@@ -165,11 +165,12 @@ actual class Node internal constructor(
                 if (length == 0) return emptyList()
                 val cursor = ts_tree_cursor_new(self).ptr
                 ts_tree_cursor_goto_first_child(cursor)
-                internalChildren = List(length) {
-                    val node = ts_tree_cursor_current_node(cursor)
-                    ts_tree_cursor_goto_next_sibling(cursor)
-                    Node(node, tree)
-                }
+                internalChildren =
+                    List(length) {
+                        val node = ts_tree_cursor_current_node(cursor)
+                        ts_tree_cursor_goto_next_sibling(cursor)
+                        Node(node, tree)
+                    }
                 ts_tree_cursor_delete(cursor)
                 kts_free(cursor)
             }
@@ -250,8 +251,9 @@ actual class Node internal constructor(
         val cursor = ts_tree_cursor_new(self).ptr
         var ok = ts_tree_cursor_goto_first_child(cursor)
         while (ok) {
-            if (ts_tree_cursor_current_field_id(cursor) == id)
+            if (ts_tree_cursor_current_field_id(cursor) == id) {
                 children += Node(ts_tree_cursor_current_node(cursor), tree)
+            }
             ok = ts_tree_cursor_goto_next_sibling(cursor)
         }
         ts_tree_cursor_delete(cursor)
@@ -339,9 +341,10 @@ actual class Node internal constructor(
     actual fun edit(edit: InputEdit) {
         val inputEdit = cValue<TSInputEdit> { from(edit) }
         val arena = Arena()
-        val node = interpretCPointer<TSNode>(
-            arena.alloc(self.size, self.align).rawPtr
-        )
+        val node =
+            interpretCPointer<TSNode>(
+                arena.alloc(self.size, self.align).rawPtr,
+            )
         ts_node_edit(node, inputEdit)
         internalChildren = null
         arena.clear()
@@ -351,9 +354,10 @@ actual class Node internal constructor(
     actual fun walk() = TreeCursor(this)
 
     /** Get the source code of the node, if available. */
-    actual fun text() = tree.text()?.run {
-        subSequence(startByte.toInt(), minOf(endByte.toInt(), length))
-    }
+    actual fun text() =
+        tree.text()?.run {
+            subSequence(startByte.toInt(), minOf(endByte.toInt(), length))
+        }
 
     /** Get the S-expression of the node. */
     actual fun sexp(): String {

@@ -10,14 +10,24 @@ actual class TreeCursor internal constructor(
     actual val currentDescendantIndex: UInt get() = 0u
 
     actual fun copy(): TreeCursor = TreeCursor(tree)
+
     actual fun reset(node: Node) {}
+
     actual fun reset(cursor: TreeCursor) {}
+
     actual fun gotoFirstChild(): Boolean = false
+
     actual fun gotoLastChild(): Boolean = false
+
     actual fun gotoParent(): Boolean = false
+
     actual fun gotoNextSibling(): Boolean = false
+
     actual fun gotoPreviousSibling(): Boolean = false
+
     actual fun gotoDescendant(index: UInt) {}
+
     actual fun gotoFirstChildForByte(byte: UInt): UInt? = null
+
     actual fun gotoFirstChildForPoint(point: Point): UInt? = null
 }

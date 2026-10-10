@@ -11,7 +11,7 @@ import kotlin.jvm.JvmName
  */
 class QueryMatch internal constructor(
     @get:JvmName("getPatternIndex") val patternIndex: UInt,
-    val captures: List<QueryCapture>
+    val captures: List<QueryCapture>,
 ) {
     /** Get the nodes that are captured by the given [capture] name. */
     operator fun get(capture: String): List<Node> =

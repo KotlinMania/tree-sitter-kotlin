@@ -6,6 +6,7 @@ actual class Parser actual constructor() {
     }
 
     actual var language: Language? = null
+
     @set:Throws(IllegalArgumentException::class)
     actual var includedRanges: List<Range> = emptyList()
 

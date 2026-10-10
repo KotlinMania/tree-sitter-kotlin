@@ -11,7 +11,7 @@ import dalvik.annotation.optimization.FastNative
  */
 actual class TreeCursor private constructor(
     private val self: Long,
-    @JvmField internal actual val tree: Tree
+    @JvmField internal actual val tree: Tree,
 ) : AutoCloseable {
     internal constructor(node: Node) : this(init(node), node.tree) {
         internalNode = node
@@ -175,7 +175,9 @@ actual class TreeCursor private constructor(
     @JvmName("nativeGotoFirstChildForPoint")
     private external fun nativeGotoFirstChildForPoint(point: Point): Long
 
-    private class CleanAction(private val ptr: Long) : Runnable {
+    private class CleanAction(
+        private val ptr: Long,
+    ) : Runnable {
         override fun run() = delete(ptr)
     }
 

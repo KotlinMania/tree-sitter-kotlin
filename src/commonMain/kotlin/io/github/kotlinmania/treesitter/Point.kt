@@ -12,7 +12,7 @@ import kotlin.jvm.JvmName
  */
 data class Point(
     @get:JvmName("row") val row: UInt,
-    @get:JvmName("column") val column: UInt
+    @get:JvmName("column") val column: UInt,
 ) : Comparable<Point> {
     override operator fun compareTo(other: Point): Int {
         val rowDiff = row.compareTo(other.row)
@@ -46,4 +46,3 @@ data class PointRange(
  * Creates a range from this [Point] value to the specified [that] value.
  */
 operator fun Point.rangeTo(that: Point): PointRange = PointRange(this, that)
-

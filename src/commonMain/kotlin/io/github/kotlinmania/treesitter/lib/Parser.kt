@@ -3,8 +3,6 @@
 
 package io.github.kotlinmania.treesitter.lib
 
-import kotlin.native.HiddenFromObjC
-
 internal const val TS_BUILTIN_SYM_END: TSSymbol = 0u
 internal val TS_BUILTIN_SYM_ERROR: TSSymbol = UShort.MAX_VALUE
 internal val TS_BUILTIN_SYM_ERROR_REPEAT: TSSymbol = (UShort.MAX_VALUE.toInt() - 1).toUShort()
@@ -26,11 +24,21 @@ internal data class TSFieldMapEntry(
     val inherited: Boolean,
 )
 
-internal data class TSMapSlice(val index: UShort, val length: UShort)
+internal data class TSMapSlice(
+    val index: UShort,
+    val length: UShort,
+)
 
-internal data class TSSymbolMetadata(val visible: Boolean, val named: Boolean, val supertype: Boolean)
+internal data class TSSymbolMetadata(
+    val visible: Boolean,
+    val named: Boolean,
+    val supertype: Boolean,
+)
 
-internal data class TSLexMode(val lexState: UShort, val externalLexState: UShort)
+internal data class TSLexMode(
+    val lexState: UShort,
+    val externalLexState: UShort,
+)
 
 internal data class TSLexerMode(
     val lexState: UShort,
@@ -38,25 +46,40 @@ internal data class TSLexerMode(
     val reservedWordSetId: UShort,
 )
 
-internal data class TSCharacterRange(val start: Int, val end: Int)
+internal data class TSCharacterRange(
+    val start: Int,
+    val end: Int,
+)
 
 /** Advance the lexer by one character, optionally marking it as skippable. */
-internal fun interface TSLexerAdvanceFn { operator fun invoke(lexer: TSLexer, skip: Boolean) }
+internal fun interface TSLexerAdvanceFn {
+    operator fun invoke(lexer: TSLexer, skip: Boolean)
+}
 
 /** Mark the end of the current token at the lexer's position. */
-internal fun interface TSLexerMarkEndFn { operator fun invoke(lexer: TSLexer) }
+internal fun interface TSLexerMarkEndFn {
+    operator fun invoke(lexer: TSLexer)
+}
 
 /** Return the column index of the lexer's current position. */
-internal fun interface TSLexerGetColumnFn { operator fun invoke(lexer: TSLexer): UInt }
+internal fun interface TSLexerGetColumnFn {
+    operator fun invoke(lexer: TSLexer): UInt
+}
 
 /** Predicate: is the lexer's position at the start of an included range? */
-internal fun interface TSLexerIsAtIncludedRangeStartFn { operator fun invoke(lexer: TSLexer): Boolean }
+internal fun interface TSLexerIsAtIncludedRangeStartFn {
+    operator fun invoke(lexer: TSLexer): Boolean
+}
 
 /** Predicate: has the lexer reached end-of-input? */
-internal fun interface TSLexerEofFn { operator fun invoke(lexer: TSLexer): Boolean }
+internal fun interface TSLexerEofFn {
+    operator fun invoke(lexer: TSLexer): Boolean
+}
 
 /** Emit a lexer log message. */
-internal fun interface TSLexerLogFn { operator fun invoke(lexer: TSLexer, message: String) }
+internal fun interface TSLexerLogFn {
+    operator fun invoke(lexer: TSLexer, message: String)
+}
 
 /**
  * Lexer-side surface that grammar-generated lex functions call back into. The C runtime
@@ -84,7 +107,11 @@ internal enum class TSParseActionType { Shift, Reduce, Accept, Recover }
 internal sealed class TSParseAction {
     abstract val type: TSParseActionType
 
-    class Shift(val state: TSStateId, val extra: Boolean = false, val repetition: Boolean = false) : TSParseAction() {
+    class Shift(
+        val state: TSStateId,
+        val extra: Boolean = false,
+        val repetition: Boolean = false,
+    ) : TSParseAction() {
         override val type: TSParseActionType = TSParseActionType.Shift
     }
 
@@ -112,15 +139,25 @@ internal sealed class TSParseAction {
  * arms explicitly so callers don't conflate them.
  */
 internal sealed class TSParseActionEntry {
-    class Action(val action: TSParseAction) : TSParseActionEntry()
-    class Header(val count: UByte, val reusable: Boolean) : TSParseActionEntry()
+    class Action(
+        val action: TSParseAction,
+    ) : TSParseActionEntry()
+
+    class Header(
+        val count: UByte,
+        val reusable: Boolean,
+    ) : TSParseActionEntry()
 }
 
 /** Construct a fresh external-scanner payload. */
-internal fun interface TSExternalScannerCreateFn { operator fun invoke(): Any? }
+internal fun interface TSExternalScannerCreateFn {
+    operator fun invoke(): Any?
+}
 
 /** Tear down a previously-created external-scanner payload. */
-internal fun interface TSExternalScannerDestroyFn { operator fun invoke(payload: Any?) }
+internal fun interface TSExternalScannerDestroyFn {
+    operator fun invoke(payload: Any?)
+}
 
 /** Run the external scanner; populate [validSymbols] with the accepted symbols. */
 internal fun interface TSExternalScannerScanFn {
@@ -160,6 +197,7 @@ internal class TSLanguageExternalScanner(
  * compile-time arrays from C become Kotlin arrays / lists so the grammar generator (or hand
  * port) can construct one literal.
  */
+
 /** Run the generated lex function for a parse state, returning whether a token was accepted. */
 internal fun interface TSLexFn {
     operator fun invoke(lexer: TSLexer, state: TSStateId): Boolean

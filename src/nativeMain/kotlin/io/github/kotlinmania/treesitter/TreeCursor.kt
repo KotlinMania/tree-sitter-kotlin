@@ -1,15 +1,15 @@
 package io.github.kotlinmania.treesitter
 
 import io.github.kotlinmania.treesitter.internal.*
+import kotlinx.cinterop.*
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.ref.createCleaner
-import kotlinx.cinterop.*
 
 /** A class that can be used to efficiently walk a [syntax tree][Tree]. */
 @OptIn(ExperimentalForeignApi::class)
 actual class TreeCursor private constructor(
     private val self: CPointer<TSTreeCursor>,
-    internal actual val tree: Tree
+    internal actual val tree: Tree,
 ) {
     internal constructor(node: Node) : this(ts_tree_cursor_new(node.self).ptr, node.tree) {
         internalNode = node
@@ -17,18 +17,20 @@ actual class TreeCursor private constructor(
 
     @Suppress("unused")
     @OptIn(ExperimentalNativeApi::class)
-    private val cleaner = createCleaner(self) {
-        ts_tree_cursor_delete(it)
-        kts_free(it)
-    }
+    private val cleaner =
+        createCleaner(self) {
+            ts_tree_cursor_delete(it)
+            kts_free(it)
+        }
 
     private var internalNode: Node? = null
 
     /** The current node of the cursor. */
     actual val currentNode: Node
         get() {
-            if (internalNode == null)
+            if (internalNode == null) {
                 internalNode = ts_tree_cursor_current_node(self).convert(tree)
+            }
             return internalNode!!
         }
 

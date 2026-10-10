@@ -13,13 +13,17 @@ sealed interface QueryPredicateArg {
 
     /** A capture argument (`@value`). */
     @JvmInline
-    value class Capture(override val value: String) : QueryPredicateArg {
+    value class Capture(
+        override val value: String,
+    ) : QueryPredicateArg {
         override fun toString() = "@$value"
     }
 
     /** A literal string argument (`"value"`). */
     @JvmInline
-    value class Literal(override val value: String) : QueryPredicateArg {
+    value class Literal(
+        override val value: String,
+    ) : QueryPredicateArg {
         override fun toString() = "\"$value\""
     }
 }

@@ -4,4 +4,6 @@ package io.github.kotlinmania.treesitter
 /**
  * An error that occurred in [Parser.setIncludedRanges].
  */
-data class IncludedRangesError(val index: ULong)
+data class IncludedRangesError(
+    val index: ULong,
+)

@@ -105,7 +105,7 @@ actual class Parser actual constructor() : AutoCloseable {
         encoding: InputEncoding,
         oldTree: Tree?,
         progressCallback: ParseProgressCallback?,
-        readCallback: ParseReadCallback
+        readCallback: ParseReadCallback,
     ): Tree
 
     /**
@@ -126,7 +126,9 @@ actual class Parser actual constructor() : AutoCloseable {
     @Suppress("unused")
     actual enum class LogType { LEX, PARSE }
 
-    private class CleanAction(private val ptr: Long) : Runnable {
+    private class CleanAction(
+        private val ptr: Long,
+    ) : Runnable {
         override fun run() = delete(ptr)
     }
 

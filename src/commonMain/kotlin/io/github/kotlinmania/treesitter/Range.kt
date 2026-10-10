@@ -12,14 +12,16 @@ import kotlin.jvm.JvmName
  *  If the end point is smaller than the start point,
  *  or the end byte is smaller than the start byte.
  */
-data class Range @Throws(IllegalArgumentException::class) constructor(
-    @get:JvmName("startPoint") val startPoint: Point,
-    @get:JvmName("endPoint") val endPoint: Point,
-    @get:JvmName("startByte") val startByte: UInt,
-    @get:JvmName("endByte") val endByte: UInt
-) {
-    init {
-        require(startPoint <= endPoint) { "Invalid point range: [$startPoint, $endPoint]" }
-        require(startByte <= endByte) { "Invalid byte range: [$startByte, $endByte]" }
+data class Range
+    @Throws(IllegalArgumentException::class)
+    constructor(
+        @get:JvmName("startPoint") val startPoint: Point,
+        @get:JvmName("endPoint") val endPoint: Point,
+        @get:JvmName("startByte") val startByte: UInt,
+        @get:JvmName("endByte") val endByte: UInt,
+    ) {
+        init {
+            require(startPoint <= endPoint) { "Invalid point range: [$startPoint, $endPoint]" }
+            require(startByte <= endByte) { "Invalid byte range: [$startByte, $endByte]" }
+        }
     }
-}

@@ -7,8 +7,10 @@ import java.nio.charset.Charset
  *
  * @since 0.25.0
  */
-actual enum class InputEncoding(val charset: Charset) {
+actual enum class InputEncoding(
+    val charset: Charset,
+) {
     UTF_8(Charsets.UTF_8),
     UTF_16LE(Charsets.UTF_16LE),
-    UTF_16BE(Charsets.UTF_16BE)
+    UTF_16BE(Charsets.UTF_16BE),
 }

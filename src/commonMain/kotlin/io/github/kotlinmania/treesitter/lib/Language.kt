@@ -45,8 +45,10 @@ internal fun tsLanguageLookup(self: TSLanguage, state: TSStateId, symbol: TSSymb
         val groupCount = self.smallParseTable[i].toInt()
         i++
         repeat(groupCount) {
-            val sectionValue = self.smallParseTable[i]; i++
-            val symbolCount = self.smallParseTable[i].toInt(); i++
+            val sectionValue = self.smallParseTable[i]
+            i++
+            val symbolCount = self.smallParseTable[i].toInt()
+            i++
             for (j in 0 until symbolCount) {
                 if (self.smallParseTable[i] == symbol) {
                     return sectionValue
@@ -127,8 +129,11 @@ internal fun tsLanguageSymbolCount(self: TSLanguage): UInt = self.symbolCount + 
 internal fun tsLanguageStateCount(self: TSLanguage): UInt = self.stateCount
 
 internal fun tsLanguageSupertypes(self: TSLanguage): UShortArray =
-    if (self.abiVersion >= LANGUAGE_VERSION_WITH_RESERVED_WORDS) self.supertypeSymbols
-    else UShortArray(0)
+    if (self.abiVersion >= LANGUAGE_VERSION_WITH_RESERVED_WORDS) {
+        self.supertypeSymbols
+    } else {
+        UShortArray(0)
+    }
 
 internal fun tsLanguageSubtypes(self: TSLanguage, supertype: TSSymbol): UShortArray {
     if (self.abiVersion < LANGUAGE_VERSION_WITH_RESERVED_WORDS ||
@@ -169,9 +174,7 @@ internal fun tsLanguageTableEntry(self: TSLanguage, state: TSStateId, symbol: TS
         TableEntry(actions = actions, actionCount = header.count.toUInt(), isReusable = header.reusable)
     }
 
-internal fun tsLanguageLexModeForState(self: TSLanguage, state: TSStateId): TSLexerMode {
-    return self.lexModes[state.toInt() and 0xFFFF]
-}
+internal fun tsLanguageLexModeForState(self: TSLanguage, state: TSStateId): TSLexerMode = self.lexModes[state.toInt() and 0xFFFF]
 
 internal fun tsLanguageIsReservedWord(self: TSLanguage, state: TSStateId, symbol: TSSymbol): Boolean {
     val lexMode = tsLanguageLexModeForState(self, state)
@@ -188,15 +191,19 @@ internal fun tsLanguageIsReservedWord(self: TSLanguage, state: TSStateId, symbol
     return false
 }
 
-internal fun tsLanguageSymbolMetadata(self: TSLanguage, symbol: TSSymbol): TSSymbolMetadata = when (symbol) {
-    TS_BUILTIN_SYM_ERROR -> TSSymbolMetadata(visible = true, named = true, supertype = false)
-    TS_BUILTIN_SYM_ERROR_REPEAT -> TSSymbolMetadata(visible = false, named = false, supertype = false)
-    else -> self.symbolMetadata[symbol.toInt() and 0xFFFF]
-}
+internal fun tsLanguageSymbolMetadata(self: TSLanguage, symbol: TSSymbol): TSSymbolMetadata =
+    when (symbol) {
+        TS_BUILTIN_SYM_ERROR -> TSSymbolMetadata(visible = true, named = true, supertype = false)
+        TS_BUILTIN_SYM_ERROR_REPEAT -> TSSymbolMetadata(visible = false, named = false, supertype = false)
+        else -> self.symbolMetadata[symbol.toInt() and 0xFFFF]
+    }
 
 internal fun tsLanguagePublicSymbol(self: TSLanguage, symbol: TSSymbol): TSSymbol =
-    if (symbol == TS_BUILTIN_SYM_ERROR) symbol
-    else self.publicSymbolMap[symbol.toInt() and 0xFFFF]
+    if (symbol == TS_BUILTIN_SYM_ERROR) {
+        symbol
+    } else {
+        self.publicSymbolMap[symbol.toInt() and 0xFFFF]
+    }
 
 internal fun tsLanguageNextState(self: TSLanguage, state: TSStateId, symbol: TSSymbol): TSStateId {
     if (symbol == TS_BUILTIN_SYM_ERROR || symbol == TS_BUILTIN_SYM_ERROR_REPEAT) return 0u
@@ -213,12 +220,13 @@ internal fun tsLanguageNextState(self: TSLanguage, state: TSStateId, symbol: TSS
     return tsLanguageLookup(self, state, symbol)
 }
 
-internal fun tsLanguageSymbolName(self: TSLanguage, symbol: TSSymbol): String? = when {
-    symbol == TS_BUILTIN_SYM_ERROR -> "ERROR"
-    symbol == TS_BUILTIN_SYM_ERROR_REPEAT -> "_ERROR"
-    symbol < tsLanguageSymbolCount(self).toUShort() -> self.symbolNames[symbol.toInt() and 0xFFFF]
-    else -> null
-}
+internal fun tsLanguageSymbolName(self: TSLanguage, symbol: TSSymbol): String? =
+    when {
+        symbol == TS_BUILTIN_SYM_ERROR -> "ERROR"
+        symbol == TS_BUILTIN_SYM_ERROR_REPEAT -> "_ERROR"
+        symbol < tsLanguageSymbolCount(self).toUShort() -> self.symbolNames[symbol.toInt() and 0xFFFF]
+        else -> null
+    }
 
 internal fun tsLanguageSymbolForName(self: TSLanguage, name: String, isNamed: Boolean): TSSymbol {
     if (isNamed && name == "ERROR") return TS_BUILTIN_SYM_ERROR

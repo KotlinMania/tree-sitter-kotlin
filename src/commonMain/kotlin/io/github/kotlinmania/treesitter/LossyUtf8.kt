@@ -1,8 +1,9 @@
 // port-lint: source lib.rs
 package io.github.kotlinmania.treesitter
 
-class LossyUtf8(bytes: ByteArray) : AbstractIterator<String>() {
-
+class LossyUtf8(
+    bytes: ByteArray,
+) : AbstractIterator<String>() {
     private var bytes: ByteArray = bytes
     private var inReplacement: Boolean = false
 
@@ -52,13 +53,14 @@ class LossyUtf8(bytes: ByteArray) : AbstractIterator<String>() {
 
         private fun invalidSequenceLength(bytes: ByteArray, start: Int): Int {
             val first = bytes[start].toInt() and 0xFF
-            val expectedLen = when {
-                first and 0x80 == 0x00 -> 1
-                first and 0xE0 == 0xC0 -> 2
-                first and 0xF0 == 0xE0 -> 3
-                first and 0xF8 == 0xF0 -> 4
-                else -> 1
-            }
+            val expectedLen =
+                when {
+                    first and 0x80 == 0x00 -> 1
+                    first and 0xE0 == 0xC0 -> 2
+                    first and 0xF0 == 0xE0 -> 3
+                    first and 0xF8 == 0xF0 -> 4
+                    else -> 1
+                }
             val available = minOf(expectedLen, bytes.size - start)
             var consumed = 1
             while (consumed < available) {
@@ -71,13 +73,14 @@ class LossyUtf8(bytes: ByteArray) : AbstractIterator<String>() {
 
         private fun utf8SequenceWidth(bytes: ByteArray, offset: Int): Int {
             val first = bytes[offset].toInt() and 0xFF
-            val width = when {
-                first and 0x80 == 0x00 -> 1
-                first and 0xE0 == 0xC0 -> 2
-                first and 0xF0 == 0xE0 -> 3
-                first and 0xF8 == 0xF0 -> 4
-                else -> return -1
-            }
+            val width =
+                when {
+                    first and 0x80 == 0x00 -> 1
+                    first and 0xE0 == 0xC0 -> 2
+                    first and 0xF0 == 0xE0 -> 3
+                    first and 0xF8 == 0xF0 -> 4
+                    else -> return -1
+                }
             if (offset + width > bytes.size) return -1
             for (k in 1 until width) {
                 val b = bytes[offset + k].toInt() and 0xFF
@@ -96,12 +99,13 @@ class LossyUtf8(bytes: ByteArray) : AbstractIterator<String>() {
 
         private fun decodeCodePoint(bytes: ByteArray, offset: Int, width: Int): Int {
             val first = bytes[offset].toInt() and 0xFF
-            var cp = when (width) {
-                2 -> first and 0x1F
-                3 -> first and 0x0F
-                4 -> first and 0x07
-                else -> first
-            }
+            var cp =
+                when (width) {
+                    2 -> first and 0x1F
+                    3 -> first and 0x0F
+                    4 -> first and 0x07
+                    else -> first
+                }
             for (k in 1 until width) {
                 cp = (cp shl 6) or (bytes[offset + k].toInt() and 0x3F)
             }

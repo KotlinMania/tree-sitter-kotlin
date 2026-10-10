@@ -12,7 +12,7 @@ import kotlin.jvm.JvmName
 @ConsistentCopyVisibility
 data class QueryCapture internal constructor(
     @get:JvmName("node") val node: Node,
-    @get:JvmName("name") val name: String
+    @get:JvmName("name") val name: String,
 ) {
     override fun toString() = "QueryCapture(name=$name, node=$node)"
 }

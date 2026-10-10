@@ -1,7 +1,10 @@
 // port-lint: source lib/src/lexer.h
 package io.github.kotlinmania.treesitter.lib
 
-internal data class ColumnData(val value: UInt, val valid: Boolean)
+internal data class ColumnData(
+    val value: UInt,
+    val valid: Boolean,
+)
 
 /**
  * Internal lexer state held by the parser engine. The C runtime stored this as a struct

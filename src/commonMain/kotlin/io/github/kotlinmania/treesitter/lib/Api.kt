@@ -24,7 +24,9 @@ internal enum class TSLogType {
     Lex,
 }
 
-internal enum class TSQuantifier(val raw: UInt) {
+internal enum class TSQuantifier(
+    val raw: UInt,
+) {
     Zero(0u),
     ZeroOrOne(1u),
     ZeroOrMore(2u),
@@ -38,7 +40,9 @@ internal enum class TSQueryPredicateStepType {
     String,
 }
 
-internal enum class TSQueryError(val raw: UInt) {
+internal enum class TSQueryError(
+    val raw: UInt,
+) {
     None(0u),
     Syntax(1u),
     NodeType(2u),
@@ -48,7 +52,10 @@ internal enum class TSQueryError(val raw: UInt) {
     Language(6u),
 }
 
-internal data class TSPoint(val row: UInt, val column: UInt)
+internal data class TSPoint(
+    val row: UInt,
+    val column: UInt,
+)
 
 internal data class TSRange(
     val startPoint: TSPoint,
@@ -125,11 +132,13 @@ internal class TSNode internal constructor(
     val tree: TSTree,
 )
 
-internal class TSQueryCapture(val node: TSNode, val index: UInt)
+internal class TSQueryCapture(
+    val node: TSNode,
+    val index: UInt,
+)
 
 internal class TSQueryMatch(
     val id: UInt,
     val patternIndex: UShort,
     val captures: List<TSQueryCapture>,
 )
-
