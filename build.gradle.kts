@@ -863,6 +863,27 @@ tasks.register("hostTests") {
     )
 }
 
+// Set the SPM minimum when the package is generated, before either Xcode or
+// standalone Swift tests consume it. The coroutine runtime supports macOS 14.
+tasks.matching { it.name.contains("GenerateSPMPackage") }.configureEach {
+    doLast {
+        val spmDir = layout.buildDirectory.dir("SPMPackage").get().asFile
+        if (spmDir.exists()) {
+            spmDir.walkTopDown().filter { it.name == "Package.swift" }.forEach { packageFile ->
+                val text = packageFile.readText()
+                if (!text.contains("platforms:")) {
+                    packageFile.writeText(
+                        text.replaceFirst(
+                            Regex("""(let package = Package\s*\(\s*name:\s*"[^"]*",)"""),
+                            "$1\n    platforms: [.macOS(.v14)],",
+                        ),
+                    )
+                }
+            }
+        }
+    }
+}
+
 // Swift Export smoke test — produces the SPM package via embedSwiftExportForXcode
 // (spawned with the Xcode-style env it requires) and runs `swift test` against it,
 // so Swift Export breakage surfaces locally, not only in the swift.yml CI job.
@@ -905,23 +926,6 @@ tasks.register("swiftExportSmokeTest") {
                     ),
                 )
             }.assertNormalExitValue()
-
-        val generatedPackageSwift =
-            layout.buildDirectory
-                .file("SPMPackage/macosArm64/Debug/Package.swift")
-                .get()
-                .asFile
-        if (generatedPackageSwift.exists()) {
-            val text = generatedPackageSwift.readText()
-            if (!text.contains("platforms:")) {
-                generatedPackageSwift.writeText(
-                    text.replaceFirst(
-                        Regex("(name:\\s*\"[^\"]*\",)"),
-                        "\$1\n    platforms: [.macOS(.v14)],",
-                    ),
-                )
-            }
-        }
 
         execOperations
             .exec {
@@ -1010,6 +1014,9 @@ val konanUserDir =
         ?: File(System.getProperty("user.home")).resolve(".konan")
 
 fun resolveKonanHome(): File {
+    providers.gradleProperty("kotlin.native.home").orNull?.let { return file(it) }
+    val nativeVersion =
+        providers.gradleProperty("kotlin.native.version").getOrElse(libs.versions.kotlin.get())
     val hostPlatform =
         when {
             isMacHost && System.getProperty("os.arch") == "aarch64" -> "macos-aarch64"
@@ -1018,23 +1025,10 @@ fun resolveKonanHome(): File {
             System.getProperty("os.arch") == "aarch64" -> "linux-aarch64"
             else -> "linux-x86_64"
         }
-    val candidate = konanUserDir.resolve("kotlin-native-prebuilt-$hostPlatform-$kotlinVersion")
-    if (candidate.exists()) return candidate
-    val found =
-        konanUserDir
-            .listFiles()
-            ?.filter {
-                it.isDirectory && it.name.startsWith("kotlin-native-prebuilt-$hostPlatform")
-            }?.maxByOrNull { it.name }
-    return found ?: candidate
+    return konanUserDir.resolve("kotlin-native-prebuilt-$hostPlatform-$nativeVersion")
 }
 
 tasks.withType<CInteropProcess>().configureEach {
-    val runKonan =
-        resolveKonanHome()
-            .resolve("bin")
-            .resolve(if (hostOs.isWindows) "run_konan.bat" else "run_konan")
-            .path
     val libFile =
         treesitterLibsDir
             .dir(konanTarget.name)
@@ -1044,6 +1038,11 @@ tasks.withType<CInteropProcess>().configureEach {
     val objectFile = treesitterVendorDir.resolve("lib.o")
 
     doFirst {
+        val runKonan =
+            resolveKonanHome()
+                .resolve("bin")
+                .resolve(if (hostOs.isWindows) "run_konan.bat" else "run_konan")
+                .path
         libFile.parentFile.mkdirs()
 
         val argsFile = File.createTempFile("args", null)
