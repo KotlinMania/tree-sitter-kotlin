@@ -193,52 +193,76 @@ internal fun tsSubtreeSetExtra(self: Subtree, isExtra: Boolean) {
 
 internal fun tsSubtreeLeafSymbol(self: Subtree): TSSymbol =
     when (self) {
-        is Subtree.Inline -> self.symbol.toUShort()
-        is Subtree.Heap ->
+        is Subtree.Inline -> {
+            self.symbol.toUShort()
+        }
+
+        is Subtree.Heap -> {
             when {
-                self.childCount == 0u -> self.symbol
-                else ->
+                self.childCount == 0u -> {
+                    self.symbol
+                }
+
+                else -> {
                     when (val branch = self.branch) {
                         is Subtree.HeapBranch.NonTerminal -> branch.firstLeafSymbol
                         is Subtree.HeapBranch.ExternalTerminal -> self.symbol
                         is Subtree.HeapBranch.ErrorTerminal -> self.symbol
                     }
+                }
             }
+        }
     }
 
 internal fun tsSubtreeLeafParseState(self: Subtree): TSStateId =
     when (self) {
-        is Subtree.Inline -> self.parseState
-        is Subtree.Heap ->
+        is Subtree.Inline -> {
+            self.parseState
+        }
+
+        is Subtree.Heap -> {
             when {
-                self.childCount == 0u -> self.parseState
-                else ->
+                self.childCount == 0u -> {
+                    self.parseState
+                }
+
+                else -> {
                     when (val branch = self.branch) {
                         is Subtree.HeapBranch.NonTerminal -> branch.firstLeafParseState
                         is Subtree.HeapBranch.ExternalTerminal -> self.parseState
                         is Subtree.HeapBranch.ErrorTerminal -> self.parseState
                     }
+                }
             }
+        }
     }
 
 internal fun tsSubtreePadding(self: Subtree): Length =
     when (self) {
-        is Subtree.Inline ->
+        is Subtree.Inline -> {
             Length(
                 bytes = self.paddingBytes.toUInt(),
                 extent = Point(self.paddingRows.toUInt(), self.paddingColumns.toUInt()),
             )
-        is Subtree.Heap -> self.padding
+        }
+
+        is Subtree.Heap -> {
+            self.padding
+        }
     }
 
 internal fun tsSubtreeSize(self: Subtree): Length =
     when (self) {
-        is Subtree.Inline ->
+        is Subtree.Inline -> {
             Length(
                 bytes = self.sizeBytes.toUInt(),
                 extent = Point(0u, self.sizeBytes.toUInt()),
             )
-        is Subtree.Heap -> self.size
+        }
+
+        is Subtree.Heap -> {
+            self.size
+        }
     }
 
 internal fun tsSubtreeTotalSize(self: Subtree): Length =
@@ -266,13 +290,17 @@ internal fun tsSubtreeIsRepetition(self: Subtree): UInt =
 
 internal fun tsSubtreeVisibleDescendantCount(self: Subtree): UInt =
     when (self) {
-        is Subtree.Inline -> 0u
-        is Subtree.Heap ->
+        is Subtree.Inline -> {
+            0u
+        }
+
+        is Subtree.Heap -> {
             if (self.childCount == 0u) {
                 0u
             } else {
                 (self.branch as? Subtree.HeapBranch.NonTerminal)?.visibleDescendantCount ?: 0u
             }
+        }
     }
 
 internal fun tsSubtreeVisibleChildCount(self: Subtree): UInt =
@@ -294,13 +322,17 @@ internal fun tsSubtreeErrorCost(self: Subtree): UInt =
 
 internal fun tsSubtreeDynamicPrecedence(self: Subtree): Int =
     when (self) {
-        is Subtree.Inline -> 0
-        is Subtree.Heap ->
+        is Subtree.Inline -> {
+            0
+        }
+
+        is Subtree.Heap -> {
             if (self.childCount == 0u) {
                 0
             } else {
                 (self.branch as? Subtree.HeapBranch.NonTerminal)?.dynamicPrecedence ?: 0
             }
+        }
     }
 
 internal fun tsSubtreeProductionId(self: Subtree): UShort =
@@ -526,6 +558,7 @@ internal fun tsSubtreeSetSymbol(self: Subtree, symbol: TSSymbol, language: TSLan
                 sizeBytes = self.sizeBytes,
             )
         }
+
         is Subtree.Heap -> {
             self.symbol = symbol
             self.visible = metadata.visible
@@ -560,13 +593,17 @@ internal fun tsSubtreeNewError(
             language = language,
         )
     return when (base) {
-        is Subtree.Inline -> error("ts_builtin_sym_error never fits the inline budget")
-        is Subtree.Heap ->
+        is Subtree.Inline -> {
+            error("ts_builtin_sym_error never fits the inline budget")
+        }
+
+        is Subtree.Heap -> {
             base.copy(
                 fragileLeft = true,
                 fragileRight = true,
                 branch = Subtree.HeapBranch.ErrorTerminal(lookaheadChar = lookaheadChar),
             )
+        }
     }
 }
 
@@ -679,7 +716,7 @@ internal fun tsSubtreeNewMissingLeaf(
             language = language,
         )
     return when (base) {
-        is Subtree.Inline ->
+        is Subtree.Inline -> {
             Subtree.Inline(
                 symbol = base.symbol,
                 parseState = base.parseState,
@@ -695,7 +732,11 @@ internal fun tsSubtreeNewMissingLeaf(
                 lookaheadBytes = base.lookaheadBytes,
                 sizeBytes = base.sizeBytes,
             )
-        is Subtree.Heap -> base.copy(isMissing = true)
+        }
+
+        is Subtree.Heap -> {
+            base.copy(isMissing = true)
+        }
     }
 }
 

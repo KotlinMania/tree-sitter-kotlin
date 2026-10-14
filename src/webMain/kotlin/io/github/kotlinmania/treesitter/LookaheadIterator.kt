@@ -1,29 +1,81 @@
 package io.github.kotlinmania.treesitter
 
-actual class LookaheadIterator internal constructor(
-    actual val language: Language,
-) : AbstractIterator<LookaheadIterator.Symbol>() {
-    actual val currentSymbol: UShort get() = UShort.MAX_VALUE
-    actual val currentSymbolName: String get() = "ERROR"
+import io.github.kotlinmania.treesitter.lib.tsLookaheadIteratorCurrentSymbol
+import io.github.kotlinmania.treesitter.lib.tsLookaheadIteratorCurrentSymbolName
+import io.github.kotlinmania.treesitter.lib.tsLookaheadIteratorNew
+import io.github.kotlinmania.treesitter.lib.tsLookaheadIteratorNext
+import io.github.kotlinmania.treesitter.lib.tsLookaheadIteratorReset
+import io.github.kotlinmania.treesitter.lib.tsLookaheadIteratorResetState
+import io.github.kotlinmania.treesitter.lib.LookaheadIterator as KtLookaheadIterator
 
-    actual fun reset(state: UShort, language: Language?): Boolean = false
+actual class LookaheadIterator
+    @Throws(IllegalArgumentException::class)
+    internal constructor(
+        language: Language,
+        private var state: UShort,
+    ) : AbstractIterator<LookaheadIterator.Symbol>() {
+        private var currentLanguage: Language = language
 
-    actual override fun next(): Symbol = super.next()
+        private val ktIterator: KtLookaheadIterator =
+            tsLookaheadIteratorNew(language.ktLanguage, state)
+                ?: throw IllegalArgumentException("State $state is not valid for $language")
 
-    actual fun symbols(): Sequence<UShort> = emptySequence()
+        actual val language: Language
+            get() = currentLanguage
 
-    actual fun symbolNames(): Sequence<String> = emptySequence()
+        actual val currentSymbol: UShort
+            get() = tsLookaheadIteratorCurrentSymbol(ktIterator)
 
-    actual override fun computeNext() {
-        done()
+        actual val currentSymbolName: String
+            get() = tsLookaheadIteratorCurrentSymbolName(ktIterator).orEmpty()
+
+        actual fun reset(state: UShort, language: Language?): Boolean {
+            val ok =
+                if (language == null) {
+                    tsLookaheadIteratorResetState(ktIterator, state)
+                } else {
+                    tsLookaheadIteratorReset(ktIterator, language.ktLanguage, state).also {
+                        if (it) currentLanguage = language
+                    }
+                }
+            if (ok) this.state = state
+            return ok
+        }
+
+        actual override fun next(): Symbol = super.next()
+
+        actual fun symbols(): Sequence<UShort> {
+            reset(state)
+            return sequence {
+                while (stepNext()) {
+                    yield(currentSymbol)
+                }
+            }
+        }
+
+        actual fun symbolNames(): Sequence<String> {
+            reset(state)
+            return sequence {
+                while (stepNext()) {
+                    yield(currentSymbolName)
+                }
+            }
+        }
+
+        actual override fun computeNext() {
+            if (stepNext()) {
+                setNext(Symbol(currentSymbol, currentSymbolName))
+            } else {
+                done()
+            }
+        }
+
+        operator fun iterator() = apply { reset(state) }
+
+        private fun stepNext(): Boolean = tsLookaheadIteratorNext(ktIterator)
+
+        actual data class Symbol actual constructor(
+            actual val id: UShort,
+            actual val name: String,
+        )
     }
-
-    actual class Symbol actual constructor(
-        actual val id: UShort,
-        actual val name: String,
-    ) {
-        actual operator fun component1(): UShort = id
-
-        actual operator fun component2(): String = name
-    }
-}

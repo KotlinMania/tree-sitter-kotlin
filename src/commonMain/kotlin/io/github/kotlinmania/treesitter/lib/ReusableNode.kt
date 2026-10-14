@@ -67,7 +67,9 @@ internal fun reusableNodeDescend(self: ReusableNode): Boolean {
 }
 
 internal fun reusableNodeAdvancePastLeaf(self: ReusableNode) {
-    while (reusableNodeDescend(self)) {}
+    while (true) {
+        if (!reusableNodeDescend(self)) break
+    }
     reusableNodeAdvance(self)
 }
 

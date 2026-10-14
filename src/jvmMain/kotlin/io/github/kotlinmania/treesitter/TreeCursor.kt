@@ -4,17 +4,14 @@ package io.github.kotlinmania.treesitter
 actual class TreeCursor private constructor(
     private val self: Long,
     @JvmField internal actual val tree: Tree,
+    @Suppress("unused")
+    private var internalNode: Node? = null,
 ) {
-    internal constructor(node: Node) : this(init(node), node.tree) {
-        internalNode = node
-    }
+    internal constructor(node: Node) : this(init(node), node.tree, node)
 
     init {
         RefCleaner(this, CleanAction(self))
     }
-
-    @Suppress("unused")
-    private var internalNode: Node? = null
 
     /** The current node of the cursor. */
     actual val currentNode: Node

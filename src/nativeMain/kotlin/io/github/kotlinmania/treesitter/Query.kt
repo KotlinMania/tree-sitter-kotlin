@@ -163,12 +163,7 @@ actual class Query
                                     "second argument to #$pred must be a string literal, got @$value",
                                 )
                             }
-                            val pattern =
-                                try {
-                                    Regex(stringValues[t2.value_id])
-                                } catch (cause: IllegalArgumentException) {
-                                    throw QueryError.Predicate(row, "pattern error", cause)
-                                }
+                            val pattern = QueryPredicate.Match.compilePattern(row, stringValues[t2.value_id])
                             val value =
                                 QueryPredicate.Match(
                                     pred,
@@ -492,27 +487,36 @@ actual class Query
                                     QueryError.Syntax(-1, -1)
                                 }
                             }
+
                             TSQueryError.TSQueryErrorCapture -> {
                                 val suffix = source.subSequence(offset.toInt(), source.length)
                                 val end = suffix.indexOfFirst { !kts_is_valid_predicate_char(it.code) }
                                 val error = suffix.subSequence(0, end.takeIf { it > -1 } ?: suffix.length)
                                 QueryError.Capture(row, column, error.toString())
                             }
+
                             TSQueryError.TSQueryErrorNodeType -> {
                                 val suffix = source.subSequence(offset.toInt(), source.length)
                                 val end = suffix.indexOfFirst { !kts_is_valid_identifier_char(it.code) }
                                 val error = suffix.subSequence(0, end.takeIf { it > -1 } ?: suffix.length)
                                 QueryError.NodeType(row, column, error.toString())
                             }
+
                             TSQueryError.TSQueryErrorField -> {
                                 val suffix = source.subSequence(offset.toInt(), source.length)
                                 val end = suffix.indexOfFirst { !kts_is_valid_identifier_char(it.code) }
                                 val error = suffix.subSequence(0, end.takeIf { it > -1 } ?: suffix.length)
                                 QueryError.Field(row, column, error.toString())
                             }
-                            TSQueryError.TSQueryErrorStructure -> QueryError.Structure(row, column)
+
+                            TSQueryError.TSQueryErrorStructure -> {
+                                QueryError.Structure(row, column)
+                            }
+
                             // language errors are handled in the Language class
-                            else -> IllegalStateException("Unexpected query error")
+                            else -> {
+                                IllegalStateException("Unexpected query error")
+                            }
                         }
                     throw exception
                 }

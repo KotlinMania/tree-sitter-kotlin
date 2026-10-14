@@ -1,6 +1,8 @@
 // port-lint: source lib.rs
 package io.github.kotlinmania.treesitter
 
+import io.github.kotlinmania.regexsyntax.parser.ParserBuilder as RegexParserBuilder
+
 /**
  * A query [predicate](https://tree-sitter.github.io/tree-sitter/using-parsers#predicates)
  * that associates conditions or arbitrary metadata with a pattern.
@@ -93,6 +95,16 @@ sealed class QueryPredicate(
             return test {
                 val result = pattern.containsMatchIn(it.text()!!)
                 if (isPositive) result else !result
+            }
+        }
+
+        internal companion object {
+            fun compilePattern(row: UInt, rawPattern: String): Regex {
+                val parser = RegexParserBuilder().utf8(false).build()
+                if (parser.parse(rawPattern).isFailure) {
+                    throw QueryError.Predicate(row, "Invalid regex '$rawPattern'")
+                }
+                return Regex(rawPattern)
             }
         }
     }

@@ -1,5 +1,13 @@
 package io.github.kotlinmania.treesitter
 
+import io.github.kotlinmania.treesitter.lib.tsLookaheadIteratorCurrentSymbol
+import io.github.kotlinmania.treesitter.lib.tsLookaheadIteratorCurrentSymbolName
+import io.github.kotlinmania.treesitter.lib.tsLookaheadIteratorNew
+import io.github.kotlinmania.treesitter.lib.tsLookaheadIteratorNext
+import io.github.kotlinmania.treesitter.lib.tsLookaheadIteratorReset
+import io.github.kotlinmania.treesitter.lib.tsLookaheadIteratorResetState
+import io.github.kotlinmania.treesitter.lib.LookaheadIterator as KtLookaheadIterator
+
 /**
  * A class that is used to look up valid symbols in a specific parse state.
  *
@@ -12,19 +20,31 @@ actual class LookaheadIterator
     @Throws(IllegalArgumentException::class)
     internal constructor(
         language: Language,
-        private val state: UShort,
+        private var state: UShort,
     ) : AbstractIterator<LookaheadIterator.Symbol>() {
+        private val ktIterator: KtLookaheadIterator? =
+            language.ktLanguage?.let {
+                tsLookaheadIteratorNew(it, state)
+                    ?: throw IllegalArgumentException("State $state is not valid for $language")
+            }
+
         private val self: Long =
-            init(language.self, state).takeIf { it > 0L }
-                ?: throw IllegalArgumentException("State $state is not valid for $language")
+            if (ktIterator != null) {
+                0L
+            } else {
+                init(language.self, state).takeIf { it > 0L }
+                    ?: throw IllegalArgumentException("State $state is not valid for $language")
+            }
 
         init {
-            RefCleaner(this, CleanAction(self))
+            if (self != 0L) {
+                RefCleaner(this, CleanAction(self))
+            }
         }
 
         /** The current language of the lookahead iterator. */
         actual val language: Language
-            external get
+            get() = ktIterator?.let { Language(it.language) } ?: nativeLanguage()
 
         /**
          * The current symbol ID.
@@ -33,7 +53,7 @@ actual class LookaheadIterator
          */
         @get:JvmName("getCurrentSymbol")
         actual val currentSymbol: UShort
-            external get
+            get() = ktIterator?.let(::tsLookaheadIteratorCurrentSymbol) ?: nativeCurrentSymbol()
 
         /**
          * The current symbol name.
@@ -41,7 +61,7 @@ actual class LookaheadIterator
          * Newly created lookahead iterators will contain the `ERROR` symbol.
          */
         actual val currentSymbolName: String
-            external get
+            get() = ktIterator?.let { tsLookaheadIteratorCurrentSymbolName(it).orEmpty() } ?: nativeCurrentSymbolName()
 
         /**
          * Reset the lookahead iterator the given [state] and, optionally, another [language].
@@ -49,7 +69,21 @@ actual class LookaheadIterator
          * @return `true` if the iterator was reset successfully or `false` if it failed.
          */
         @JvmName("reset")
-        actual external fun reset(state: UShort, language: Language?): Boolean
+        actual fun reset(state: UShort, language: Language?): Boolean {
+            val iter = ktIterator
+            if (iter != null) {
+                val ok =
+                    if (language == null) {
+                        tsLookaheadIteratorResetState(iter, state)
+                    } else {
+                        val ktLang = language.ktLanguage ?: return false
+                        tsLookaheadIteratorReset(iter, ktLang, state)
+                    }
+                if (ok) this.state = state
+                return ok
+            }
+            return nativeReset(state, language).also { if (it) this.state = state }
+        }
 
         /** Advance the lookahead iterator to the next symbol. */
         actual override fun next() = super.next()
@@ -58,7 +92,7 @@ actual class LookaheadIterator
         actual fun symbols(): Sequence<UShort> {
             reset(state)
             return sequence {
-                while (nativeNext()) {
+                while (stepNext()) {
                     yield(currentSymbol)
                 }
             }
@@ -68,20 +102,31 @@ actual class LookaheadIterator
         actual fun symbolNames(): Sequence<String> {
             reset(state)
             return sequence {
-                while (nativeNext()) {
+                while (stepNext()) {
                     yield(currentSymbolName)
                 }
             }
         }
 
         actual override fun computeNext() =
-            if (nativeNext()) {
+            if (stepNext()) {
                 setNext(Symbol(currentSymbol, currentSymbolName))
             } else {
                 done()
             }
 
         operator fun iterator() = apply { reset(state) }
+
+        private fun stepNext(): Boolean =
+            ktIterator?.let(::tsLookaheadIteratorNext) ?: nativeNext()
+
+        private external fun nativeLanguage(): Language
+
+        private external fun nativeCurrentSymbol(): UShort
+
+        private external fun nativeCurrentSymbolName(): String
+
+        private external fun nativeReset(state: UShort, language: Language?): Boolean
 
         private external fun nativeNext(): Boolean
 
