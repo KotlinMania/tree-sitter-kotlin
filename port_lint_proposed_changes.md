@@ -1,6 +1,6 @@
 # port-lint Proposed Changes
 
-**Generated:** 2026-08-28
+**Generated:** 2026-10-17
 **Source:** tmp/tree-sitter/binding_rust
 **Target:** src/commonMain/kotlin/io/github/kotlinmania/treesitter
 

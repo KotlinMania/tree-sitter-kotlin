@@ -1,4 +1,3 @@
-// port-lint: source lib.rs
 package io.github.kotlinmania.treesitter
 
 /** A class that can be used to efficiently walk a [syntax tree][Tree]. */

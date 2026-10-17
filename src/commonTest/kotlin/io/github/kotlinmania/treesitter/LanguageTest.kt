@@ -574,4 +574,24 @@ class LanguageTest {
         assertFalse(iter.hasNext())
         assertContentEquals(emptyList(), iter.asSequence().toList())
     }
+
+    @Test
+    fun testWasmLanguage() {
+        val engine = WasmEngine.new()
+        val store = WasmStore.new(engine)
+        assertEquals(0, store.languageCount())
+        assertEquals(0, store.languageCount)
+
+        val err =
+            assertFailsWith<WasmError> {
+                store.loadLanguage("test", byteArrayOf(0, 1, 2))
+            }
+        assertEquals(WasmErrorKind.Instantiate, err.kind)
+        assertTrue(err.toString().startsWith("Failed to instantiate wasm module:"))
+
+        val language = getLanguage()
+        assertFalse(language.isWasm())
+
+        store.close()
+    }
 }
