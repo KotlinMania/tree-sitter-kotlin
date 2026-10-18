@@ -4,14 +4,16 @@ Based on AST analysis, here are the concrete next steps.
 
 ## Summary
 
-- **Files Present:** 2/6 (33.3%)
-- **Function parity:** 18/202 matched (target 42) — 8.9%
-- **Class/type parity:** 30/88 matched (target 46) — 34.1%
-- **Combined symbol parity:** 48/290 matched (target 88) — 16.6%
-- **Average inline-code cosine:** 0.19 (function body across 2 matched files)
-- **Average documentation cosine:** 0.27 (doc text across 2 matched files)
+- **Files Present:** 3/6 (50.0%)
+- **Function parity:** 34/36 matched (target 40) — 94.4%
+- **Class/type parity:** 5/42 matched (target 26) — 11.9%
+- **Combined symbol parity:** 39/78 matched (target 66) — 50.0%
+- **Average inline-code cosine:** 0.08 (function body across 3 matched files)
+- **Average documentation cosine:** 0.00 (doc text across 3 matched files)
 - **Cheat-zeroed Files:** 0
-- **Critical Issues:** 2 files with <0.60 function similarity
+- **Critical Issues:** 3 files with <0.60 function similarity
+- **Needs Review:** 0 files with 0.60-0.84 function similarity
+- **Excellent:** 0 files with >=0.85 function similarity
 
 ## Priority 1: Fix Incomplete High-Dependency Files
 
@@ -27,27 +29,39 @@ No missing high-value files detected.
 
 Every matched file is listed below with function and type symbol parity.
 
-### 1. lib
+### 1. util
 
-- **Target:** `Tree`
-- **Similarity:** 0.03
+- **Target:** `util.CBufferIter`
+- **Similarity:** 0.05
 - **Dependents:** 0
-- **Priority Score:** 1711209.8
-- **Functions:** 14/166 matched (target 36)
-- **Missing functions:** `new`, `drop`, `name`, `abi_version`, `metadata`, `supertypes`, `field_count`, `field_name_for_id`, `field_id_for_name`, `next_state`, `lookahead_iterator`, `clone`, `deref`, `default`, `set_language`, `language`, `logger`, `set_logger`, `log`, `print_dot_graphs`, `stop_printing_dot_graphs`, `parse`, `parse_utf16`, `parse_with`, `parse_with_options`, `progress`, `read`, `parse_utf16_with`, `parse_utf16_le`, `parse_utf16_le_with_options`, `parse_utf16_be`, `parse_utf16_be_with_options`, `parse_custom_encoding`, `decode_fn`, `reset`, `timeout_micros`, `set_timeout_micros`, `set_included_ranges`, `included_ranges`, `cancellation_flag`, `set_cancellation_flag`, `root_node`, `root_node_with_offset`, `edit`, `walk`, `changed_ranges`, `print_dot_graph`, `fmt`, `id`, `kind_id`, `grammar_id`, `kind`, `grammar_name`, `is_named`, `is_extra`, `has_changes`, `is_error`, `parse_state`, `next_parse_state`, `is_missing`, `start_byte`, `end_byte`, `byte_range`, `range`, `start_position`, `end_position`, `child`, `child_count`, `named_child`, `named_child_count`, `child_by_field_name`, `child_by_field_id`, `field_name_for_child`, `field_name_for_named_child`, `children`, `named_children`, `children_by_field_name`, `children_by_field_id`, `parent`, `child_with_descendant`, `next_sibling`, `prev_sibling`, `next_named_sibling`, `prev_named_sibling`, `first_child_for_byte`, `first_named_child_for_byte`, `descendant_count`, `descendant_for_byte_range`, `named_descendant_for_byte_range`, `descendant_for_point_range`, `named_descendant_for_point_range`, `to_sexp`, `utf8_text`, `utf16_text`, `eq`, `hash`, `node`, `field_id`, `field_name`, `depth`, `descendant_index`, `goto_first_child`, `goto_last_child`, `goto_parent`, `goto_next_sibling`, `goto_descendant`, `goto_previous_sibling`, `goto_first_child_for_byte`, `goto_first_child_for_point`, `reset_to`, `current_symbol`, `current_symbol_name`, `reset_state`, `iter_names`, `next`, `from_raw_parts`, `start_byte_for_pattern`, `end_byte_for_pattern`, `pattern_count`, `capture_names`, `capture_quantifiers`, `capture_index_for_name`, `property_predicates`, `property_settings`, `general_predicates`, `disable_capture`, `disable_pattern`, `is_pattern_rooted`, `is_pattern_non_local`, `is_pattern_guaranteed_at_step`, `parse_property`, `match_limit`, `set_match_limit`, `did_exceed_match_limit`, `matches`, `matches_with_options`, `captures`, `captures_with_options`, `set_byte_range`, `set_point_range`, `set_max_start_depth`, `remove`, `nodes_for_capture_index`, `satisfies_text_predicates`, `get_text`, `advance`, `get_mut`, `text`, `predicate_error`, `format_sexp`, `wasm_stdlib_symbols`, `set_allocator`
-- **Types:** 29/46 matched (target 45)
-- **Missing types:** `LookaheadNamesIterator`, `QueryCursorOptionsDrop`, `FieldId`, `Logger`, `ParseProgressCallback`, `QueryProgressCallback`, `Decode`, `QueryMatches`, `QueryCaptures`, `TextProvider`, `TextPredicateCapture`, `Target`, `Payload`, `Item`, `TSQueryDrop`, `NodeText`, `I`
-
-### 2. util
-
-- **Target:** `CBufferIter`
-- **Similarity:** 0.36
-- **Dependents:** 0
-- **Priority Score:** 10606.4
+- **Priority Score:** 10609.5
 - **Functions:** 4/4 matched (target 6)
 - **Missing functions:** _none_
 - **Types:** 1/2 matched (target 1)
 - **Missing types:** `Item`
+
+### 2. ffi
+
+- **Target:** `ffi.Ffi`
+- **Similarity:** 0.16
+- **Dependents:** 0
+- **Priority Score:** 2008.4
+- **Functions:** 20/20 matched
+- **Missing functions:** _none_
+- **Types:** 0/0 matched (target 20)
+- **Missing types:** _none_
+
+### 3. wasm_language
+
+- **Target:** `wasmlanguage.WasmLanguage`
+- **Similarity:** 0.03
+- **Dependents:** 0
+- **Priority Score:** 1409.7
+- **Functions:** 10/10 matched (target 14)
+- **Missing functions:** _none_
+- **Types:** 4/4 matched (target 5)
+- **Missing types:** _none_
+- **Lint issues:** 2
 
 ## Success Criteria
 
@@ -57,4 +71,17 @@ For each file to be considered "complete":
 - All tests ported
 - Documentation ported
 - port-lint header present
+
+## Reexport / Wiring Modules
+
+These files match `reexport_modules` patterns in `.ast_distance_config.json`. They are filtered out of
+normal priority and missing-file ladders because they are wiring
+modules, not direct logic ports. Consult them for call-site routing;
+do not treat them as the next implementation target by default.
+
+### Missing
+
+| Source | Expected target | Deps | Source path | Expected path |
+|--------|-----------------|------|-------------|---------------|
+| `lib` | `Lib` | 0 | `lib.rs` | `Lib.kt` |
 

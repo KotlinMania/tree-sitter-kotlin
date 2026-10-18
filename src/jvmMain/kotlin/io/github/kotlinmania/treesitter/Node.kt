@@ -161,7 +161,7 @@ actual class Node internal constructor(
         external get
 
     @Suppress("unused")
-    private var internalChildren: List<Node>? = null
+    private val internalChildren: List<Node>? = null
 
     /**
      * This node's children.

@@ -59,7 +59,8 @@ actual class Query
                 }
 
             for (i in 0U..<patternCount) {
-                val tokens = predicatesForPattern(i.toInt()) ?: continue
+                val patternIdx = i.toInt()
+                val tokens = predicatesForPattern(patternIdx) ?: continue
                 val offset = startByteForPattern(i)
                 val row =
                     source
@@ -114,7 +115,7 @@ actual class Query
                                         isAny,
                                     )
                                 }
-                            predicates[i] += value
+                            predicates[patternIdx] += value
                         }
 
                         "match?", "not-match?", "any-match?", "any-not-match?" -> {
@@ -140,12 +141,7 @@ actual class Query
                                     "second argument to #$pred must be a string literal, got @$value",
                                 )
                             }
-                            val pattern =
-                                try {
-                                    Regex(stringValues[t2.value])
-                                } catch (cause: IllegalArgumentException) {
-                                    throw QueryError.Predicate(row, "pattern error", cause)
-                                }
+                            val pattern = QueryPredicate.Match.compilePattern(row, stringValues[t2.value])
                             val value =
                                 QueryPredicate.Match(
                                     pred,
@@ -154,7 +150,7 @@ actual class Query
                                     pred == "match?" || pred == "any-match?",
                                     pred == "any-match?" || pred == "any-not-match?",
                                 )
-                            predicates[i] += value
+                            predicates[patternIdx] += value
                         }
 
                         "any-of?", "not-any-of?" -> {
@@ -191,7 +187,7 @@ actual class Query
                                     values,
                                     pred == "any-of?",
                                 )
-                            predicates[i] += value
+                            predicates[patternIdx] += value
                         }
 
                         "is?", "is-not?" -> {
@@ -225,7 +221,7 @@ actual class Query
                                     }
                                     Pair(stringValues[t2.value], pred == "is?")
                                 }
-                            assertionList[i][key] = value
+                            assertionList[patternIdx][key] = value
                         }
 
                         "set!" -> {
@@ -258,7 +254,7 @@ actual class Query
                                     }
                                     stringValues[t2.value]
                                 }
-                            settingList[i][key] = value
+                            settingList[patternIdx][key] = value
                         }
 
                         else -> {
@@ -271,7 +267,7 @@ actual class Query
                                         QueryPredicateArg.Capture(captureNames[t.value])
                                     }
                                 }
-                            predicates[i] += QueryPredicate.Generic(pred, args)
+                            predicates[patternIdx] += QueryPredicate.Generic(pred, args)
                         }
                     }
 
@@ -305,7 +301,7 @@ actual class Query
             if (index >= patternCount) {
                 throw IndexOutOfBoundsException("Index $index exceeds count $patternCount")
             }
-            return settingList[index]
+            return settingList[index.toInt()]
         }
 
         /**
@@ -325,7 +321,7 @@ actual class Query
             if (index >= patternCount) {
                 throw IndexOutOfBoundsException("Index $index exceeds count $patternCount")
             }
-            return assertionList[index]
+            return assertionList[index.toInt()]
         }
 
         /**
@@ -422,9 +418,6 @@ actual class Query
         private external fun nativeIsPatternGuaranteedAtStep(index: Int): Boolean
 
         private external fun predicatesForPattern(index: Int): List<IntArray>?
-
-        @Suppress("NOTHING_TO_INLINE")
-        private inline operator fun <T> List<T>.get(index: UInt) = get(index.toInt())
 
         private inline val IntArray.value: Int
             inline get() = get(0)

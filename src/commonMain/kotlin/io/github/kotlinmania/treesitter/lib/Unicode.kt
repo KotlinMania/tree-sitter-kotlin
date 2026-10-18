@@ -26,10 +26,12 @@ internal fun tsDecodeUtf8(
             codePoint[0] = b0
             return 1u
         }
+
         b0 < 0xC2 -> {
             codePoint[0] = TS_DECODE_ERROR
             return 1u
         }
+
         b0 < 0xE0 -> {
             if (i + 1 >= length.toInt()) {
                 codePoint[0] = TS_DECODE_ERROR
@@ -43,6 +45,7 @@ internal fun tsDecodeUtf8(
             codePoint[0] = (b0 and 0x1F shl 6) or (b1 and 0x3F)
             return 2u
         }
+
         b0 < 0xF0 -> {
             if (i + 2 >= length.toInt()) {
                 codePoint[0] = TS_DECODE_ERROR
@@ -62,6 +65,7 @@ internal fun tsDecodeUtf8(
             codePoint[0] = cp
             return 3u
         }
+
         b0 < 0xF5 -> {
             if (i + 3 >= length.toInt()) {
                 codePoint[0] = TS_DECODE_ERROR
@@ -84,6 +88,7 @@ internal fun tsDecodeUtf8(
             codePoint[0] = cp
             return 4u
         }
+
         else -> {
             codePoint[0] = TS_DECODE_ERROR
             return 1u

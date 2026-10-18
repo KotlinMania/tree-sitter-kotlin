@@ -2,7 +2,20 @@ package io.github.kotlinmania.treesitter
 
 import cnames.structs.TSLanguage
 import io.github.kotlinmania.treesitter.internal.*
+import io.github.kotlinmania.treesitter.lib.tsLanguageAbiVersion
+import io.github.kotlinmania.treesitter.lib.tsLanguageFieldCount
+import io.github.kotlinmania.treesitter.lib.tsLanguageFieldIdForName
+import io.github.kotlinmania.treesitter.lib.tsLanguageFieldNameForId
+import io.github.kotlinmania.treesitter.lib.tsLanguageName
+import io.github.kotlinmania.treesitter.lib.tsLanguageNextState
+import io.github.kotlinmania.treesitter.lib.tsLanguageStateCount
+import io.github.kotlinmania.treesitter.lib.tsLanguageSubtypes
+import io.github.kotlinmania.treesitter.lib.tsLanguageSupertypes
+import io.github.kotlinmania.treesitter.lib.tsLanguageSymbolCount
+import io.github.kotlinmania.treesitter.lib.tsLanguageSymbolForName
+import io.github.kotlinmania.treesitter.lib.tsLanguageSymbolName
 import kotlinx.cinterop.*
+import io.github.kotlinmania.treesitter.lib.TSLanguage as KtTSLanguage
 
 /**
  * A class that defines how to parse a particular language.
@@ -11,200 +24,301 @@ import kotlinx.cinterop.*
  * [ABI version][abiVersion] number that corresponds to the current CLI version.
  */
 @OptIn(ExperimentalForeignApi::class)
-actual class Language internal constructor(
-    internal val self: CPointer<TSLanguage>,
-) {
-    /**
-     * Create a new instance from the given language pointer.
-     *
-     * @param language A [CPointer] to a `TSLanguage`.
-     * @throws [IllegalArgumentException]
-     *  If the pointer is invalid or the [version][abiVersion] is incompatible.
-     */
+actual class Language
     @Throws(IllegalArgumentException::class)
-    actual constructor(language: Any) : this(
-        (language as? CPointer<*>)?.rawValue?.let(::interpretCPointer)
-            ?: throw IllegalArgumentException("Invalid language: $language"),
-    )
-
-    /**
-     * The ABI version number for this language.
-     *
-     * @since 0.25.0
-     */
-    actual val abiVersion: UInt = ts_language_abi_version(self)
-
-    init {
-        require(abiVersion in MIN_COMPATIBLE_LANGUAGE_VERSION..LANGUAGE_VERSION) {
-            "Incompatible language version $abiVersion. " +
-                "Must be between $MIN_COMPATIBLE_LANGUAGE_VERSION and $LANGUAGE_VERSION."
-        }
-    }
-
-    /** The ABI version number for this language. */
-    @Deprecated("version is deprecated", ReplaceWith("abiVersion"), DeprecationLevel.ERROR)
-    actual val version = abiVersion
-
-    /** The number of distinct node types in this language. */
-    actual val symbolCount: UInt = ts_language_symbol_count(self)
-
-    /** The number of valid states in this language. */
-    actual val stateCount: UInt = ts_language_state_count(self)
-
-    /** The number of distinct field names in this language. */
-    actual val fieldCount: UInt = ts_language_field_count(self)
-
-    /**
-     * The name of the language, if available.
-     *
-     * @since 0.25.0
-     */
-    actual val name: String? = ts_language_name(self)?.toKString()
-
-    /**
-     * The metadata of the language, if available.
-     *
-     * @since 0.25.0
-     */
-    actual val metadata: Metadata?
-        get() =
-            ts_language_metadata(self)?.pointed?.run {
-                Metadata(
-                    Triple(
-                        major_version.convert(),
-                        minor_version.convert(),
-                        patch_version.convert(),
-                    ),
-                )
-            }
-
-    /**
-     * The supertype symbols of the language.
-     *
-     * @since 0.25.0
-     */
-    @OptIn(ExperimentalUnsignedTypes::class)
-    actual val supertypes: UShortArray
-        get() =
-            memScoped {
-                val length = alloc<UIntVar>()
-                val supertypes = ts_language_supertypes(self, length.ptr) ?: return ushortArrayOf()
-                return UShortArray(length.value.convert()) { supertypes[it] }
-            }
-
-    /**
-     * Get another reference to the language.
-     *
-     * @since 0.24.0
-     */
-    actual fun copy() = Language(ts_language_copy(self)!!)
-
-    /** Get the node type for the given numerical ID. */
-    actual fun symbolName(symbol: UShort) = ts_language_symbol_name(self, symbol)?.toKString()
-
-    /** Get the numerical ID for the given node type. */
-    actual fun symbolForName(name: String, isNamed: Boolean): UShort =
-        ts_language_symbol_for_name(self, name, name.length.convert(), isNamed)
-
-    /**
-     * Get the subtype symbols for the given supertype symbol
-     *
-     * @since 0.25.0
-     * @see supertypes
-     */
-    @OptIn(ExperimentalUnsignedTypes::class)
-    actual fun subtypes(supertype: UShort): UShortArray =
-        memScoped {
-            val length = alloc<UIntVar>()
-            val supertypes = ts_language_subtypes(self, supertype, length.ptr) ?: return ushortArrayOf()
-            return UShortArray(length.value.convert()) { supertypes[it] }
-        }
-
-    /**
-     * Check if the node for the given numerical ID is named
-     *
-     * @see [Node.isNamed]
-     */
-    actual fun isNamed(symbol: UShort) =
-        ts_language_symbol_type(self, symbol) == TSSymbolTypeRegular
-
-    /** Check if the node for the given numerical ID is visible. */
-    actual fun isVisible(symbol: UShort) =
-        ts_language_symbol_type(self, symbol) <= TSSymbolTypeAnonymous
-
-    /**
-     * Check if the node for the given numerical ID is a supertype.
-     *
-     * @since 0.24.0
-     */
-    actual fun isSupertype(symbol: UShort) =
-        ts_language_symbol_type(self, symbol) == TSSymbolTypeSupertype
-
-    /** Get the field name for the given numerical id. */
-    actual fun fieldNameForId(id: UShort) = ts_language_field_name_for_id(self, id)?.toKString()
-
-    /** Get the numerical ID for the given field name. */
-    actual fun fieldIdForName(name: String): UShort =
-        ts_language_field_id_for_name(self, name, name.length.convert())
-
-    /**
-     * Get the next parse state.
-     *
-     * Combine this with [lookaheadIterator] to generate
-     * completion suggestions or valid symbols in error nodes.
-     *
-     * #### Example
-     *
-     * ```kotlin
-     * language.nextState(node.parseState, node.grammarSymbol)
-     * ```
-     */
-    actual fun nextState(state: UShort, symbol: UShort): UShort =
-        ts_language_next_state(self, state, symbol)
-
-    /**
-     * Create a new [lookahead iterator][LookaheadIterator] for the given parse state.
-     *
-     * @throws [IllegalArgumentException] If the state is invalid for this language.
-     */
-    @Throws(IllegalArgumentException::class)
-    actual fun lookaheadIterator(state: UShort) = LookaheadIterator(this, state)
-
-    /**
-     * Create a new [Query] from a string containing one or more S-expression
-     * [patterns](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/1-syntax.html).
-     *
-     * @throws [QueryError] If any error occurred while creating the query.
-     */
-    @Throws(QueryError::class)
-    @Deprecated("Use the Query constructor instead")
-    actual fun query(source: String) = Query(this, source)
-
-    actual override fun equals(other: Any?) =
-        this === other || (other is Language && self == other.self)
-
-    actual override fun hashCode() = self.hashCode()
-
-    override fun toString() = "Language(id=${self.rawValue}, abiVersion=$abiVersion)"
-
-    /**
-     * A class containing the [Language] metadata.
-     *
-     * @property semanticVersion The [Semantic Version](https://semver.org/) of the [Language].
-     */
-    @ConsistentCopyVisibility
-    actual data class Metadata internal actual constructor(
-        actual val semanticVersion: Triple<UShort, UShort, UShort>,
+    actual constructor(
+        language: Any,
     ) {
-        actual override fun toString() =
-            buildString {
-                append("Metadata(semanticVersion=\"")
-                append(semanticVersion.first)
-                append('.')
-                append(semanticVersion.second)
-                append('.')
-                append(semanticVersion.third)
-                append("\")")
+        internal val ktLanguage: KtTSLanguage?
+        internal val self: CPointer<TSLanguage>?
+        internal val handleId: Long
+
+        init {
+            when (val unwrapped = unwrapLanguageInput(language)) {
+                is Language -> {
+                    ktLanguage = unwrapped.ktLanguage
+                    self = unwrapped.self
+                    handleId = unwrapped.handleId
+                }
+
+                is KtTSLanguage -> {
+                    checkLanguageAbiVersion(unwrapped.abiVersion)
+                    ktLanguage = unwrapped
+                    val ptr =
+                        kts_rust_fixture_language()
+                            ?: throw IllegalArgumentException("Invalid language: $language")
+                    self = ptr
+                    handleId = ptr.toLong()
+                }
+
+                is CPointer<*> -> {
+                    val ptr =
+                        interpretCPointer<TSLanguage>(unwrapped.rawValue)
+                            ?: throw IllegalArgumentException("Invalid language: $language")
+                    ktLanguage = null
+                    self = ptr
+                    handleId = ptr.toLong()
+                }
+
+                is Long -> {
+                    if (unwrapped <= 0L) {
+                        throw IllegalArgumentException("Invalid language: $language")
+                    }
+                    val registered = lookupTsLanguage(unwrapped)
+                    if (registered != null) {
+                        checkLanguageAbiVersion(registered.abiVersion)
+                        ktLanguage = registered
+                        val ptr =
+                            kts_rust_fixture_language()
+                                ?: throw IllegalArgumentException("Invalid language: $language")
+                        self = ptr
+                        handleId = ptr.toLong()
+                    } else {
+                        val rawPtr =
+                            unwrapped.toCPointer<CPointed>()
+                                ?: throw IllegalArgumentException("Invalid language: $language")
+                        val ptr =
+                            interpretCPointer<TSLanguage>(rawPtr.rawValue)
+                                ?: throw IllegalArgumentException("Invalid language: $language")
+                        ktLanguage = null
+                        self = ptr
+                        handleId = unwrapped
+                    }
+                }
+
+                else -> {
+                    throw IllegalArgumentException("Invalid language: $language")
+                }
             }
+        }
+
+        /**
+         * The ABI version number for this language.
+         *
+         * @since 0.25.0
+         */
+        actual val abiVersion: UInt =
+            ktLanguage?.let(::tsLanguageAbiVersion) ?: ts_language_abi_version(self)
+
+        init {
+            checkLanguageAbiVersion(abiVersion)
+        }
+
+        /** The ABI version number for this language. */
+        @Deprecated("version is deprecated", ReplaceWith("abiVersion"), DeprecationLevel.ERROR)
+        actual val version = abiVersion
+
+        /** The number of distinct node types in this language. */
+        actual val symbolCount: UInt =
+            ktLanguage?.let(::tsLanguageSymbolCount) ?: ts_language_symbol_count(self)
+
+        /** The number of valid states in this language. */
+        actual val stateCount: UInt =
+            ktLanguage?.let(::tsLanguageStateCount) ?: ts_language_state_count(self)
+
+        /** The number of distinct field names in this language. */
+        actual val fieldCount: UInt =
+            ktLanguage?.let(::tsLanguageFieldCount) ?: ts_language_field_count(self)
+
+        /**
+         * The name of the language, if available.
+         *
+         * @since 0.25.0
+         */
+        actual val name: String? =
+            if (ktLanguage != null) tsLanguageName(ktLanguage) else ts_language_name(self)?.toKString()
+
+        /**
+         * The metadata of the language, if available.
+         *
+         * @since 0.25.0
+         */
+        actual val metadata: Metadata?
+            get() =
+                if (ktLanguage != null) {
+                    tsLanguageMetadataToPublic(ktLanguage)
+                } else {
+                    ts_language_metadata(self)?.pointed?.run {
+                        Metadata(
+                            Triple(
+                                major_version.convert(),
+                                minor_version.convert(),
+                                patch_version.convert(),
+                            ),
+                        )
+                    }
+                }
+
+        /**
+         * The supertype symbols of the language.
+         *
+         * @since 0.25.0
+         */
+        @OptIn(ExperimentalUnsignedTypes::class)
+        actual val supertypes: UShortArray
+            get() =
+                if (ktLanguage != null) {
+                    tsLanguageSupertypes(ktLanguage)
+                } else {
+                    memScoped {
+                        val length = alloc<UIntVar>()
+                        val supertypes = ts_language_supertypes(self, length.ptr) ?: return ushortArrayOf()
+                        return UShortArray(length.value.convert()) { supertypes[it] }
+                    }
+                }
+
+        /**
+         * Get another reference to the language.
+         *
+         * @since 0.24.0
+         */
+        actual fun copy(): Language =
+            if (ktLanguage != null) Language(ktLanguage) else Language(ts_language_copy(self)!!)
+
+        /** Get the node type for the given numerical ID. */
+        actual fun symbolName(symbol: UShort): String? =
+            if (ktLanguage != null) {
+                tsLanguageSymbolName(ktLanguage, symbol)
+            } else {
+                ts_language_symbol_name(self, symbol)?.toKString()
+            }
+
+        /** Get the numerical ID for the given node type. */
+        actual fun symbolForName(name: String, isNamed: Boolean): UShort =
+            if (ktLanguage != null) {
+                tsLanguageSymbolForName(ktLanguage, name, isNamed)
+            } else {
+                ts_language_symbol_for_name(self, name, name.length.convert(), isNamed)
+            }
+
+        /**
+         * Get the subtype symbols for the given supertype symbol
+         *
+         * @since 0.25.0
+         * @see supertypes
+         */
+        @OptIn(ExperimentalUnsignedTypes::class)
+        actual fun subtypes(supertype: UShort): UShortArray =
+            if (ktLanguage != null) {
+                tsLanguageSubtypes(ktLanguage, supertype)
+            } else {
+                memScoped {
+                    val length = alloc<UIntVar>()
+                    val supertypes = ts_language_subtypes(self, supertype, length.ptr) ?: return ushortArrayOf()
+                    return UShortArray(length.value.convert()) { supertypes[it] }
+                }
+            }
+
+        /**
+         * Check if the node for the given numerical ID is named
+         *
+         * @see [Node.isNamed]
+         */
+        actual fun isNamed(symbol: UShort): Boolean =
+            if (ktLanguage != null) {
+                tsLanguageIsNamed(ktLanguage, symbol)
+            } else {
+                ts_language_symbol_type(self, symbol) == TSSymbolTypeRegular
+            }
+
+        /** Check if the node for the given numerical ID is visible. */
+        actual fun isVisible(symbol: UShort): Boolean =
+            if (ktLanguage != null) {
+                tsLanguageIsVisible(ktLanguage, symbol)
+            } else {
+                ts_language_symbol_type(self, symbol) <= TSSymbolTypeAnonymous
+            }
+
+        /**
+         * Check if the node for the given numerical ID is a supertype.
+         *
+         * @since 0.24.0
+         */
+        actual fun isSupertype(symbol: UShort): Boolean =
+            if (ktLanguage != null) {
+                tsLanguageIsSupertype(ktLanguage, symbol)
+            } else {
+                ts_language_symbol_type(self, symbol) == TSSymbolTypeSupertype
+            }
+
+        /** Get the field name for the given numerical id. */
+        actual fun fieldNameForId(id: UShort): String? =
+            if (ktLanguage != null) {
+                tsLanguageFieldNameForId(ktLanguage, id)
+            } else {
+                ts_language_field_name_for_id(self, id)?.toKString()
+            }
+
+        /** Get the numerical ID for the given field name. */
+        actual fun fieldIdForName(name: String): UShort =
+            if (ktLanguage != null) {
+                tsLanguageFieldIdForName(ktLanguage, name)
+            } else {
+                ts_language_field_id_for_name(self, name, name.length.convert())
+            }
+
+        /**
+         * Get the next parse state.
+         *
+         * Combine this with [lookaheadIterator] to generate
+         * completion suggestions or valid symbols in error nodes.
+         *
+         * #### Example
+         *
+         * ```kotlin
+         * language.nextState(node.parseState, node.grammarSymbol)
+         * ```
+         */
+        actual fun nextState(state: UShort, symbol: UShort): UShort =
+            if (ktLanguage != null) {
+                tsLanguageNextState(ktLanguage, state, symbol)
+            } else {
+                ts_language_next_state(self, state, symbol)
+            }
+
+        /**
+         * Create a new [lookahead iterator][LookaheadIterator] for the given parse state.
+         *
+         * @throws [IllegalArgumentException] If the state is invalid for this language.
+         */
+        @Throws(IllegalArgumentException::class)
+        actual fun lookaheadIterator(state: UShort) = LookaheadIterator(this, state)
+
+        /**
+         * Create a new [Query] from a string containing one or more S-expression
+         * [patterns](https://tree-sitter.github.io/tree-sitter/using-parsers/queries/1-syntax.html).
+         *
+         * @throws [QueryError] If any error occurred while creating the query.
+         */
+        @Throws(QueryError::class)
+        @Deprecated("Use the Query constructor instead")
+        actual fun query(source: String) = Query(this, source)
+
+        actual override fun equals(other: Any?) =
+            this === other || (other is Language && handleId == other.handleId)
+
+        actual override fun hashCode() = handleId.hashCode()
+
+        override fun toString() = "Language(id=0x${handleId.toString(16)}, abiVersion=$abiVersion)"
+
+        /**
+         * A class containing the [Language] metadata.
+         *
+         * @property semanticVersion The [Semantic Version](https://semver.org/) of the [Language].
+         */
+        @ConsistentCopyVisibility
+        actual data class Metadata internal actual constructor(
+            actual val semanticVersion: Triple<UShort, UShort, UShort>,
+        ) {
+            actual override fun toString() =
+                buildString {
+                    append("Metadata(semanticVersion=\"")
+                    append(semanticVersion.first)
+                    append('.')
+                    append(semanticVersion.second)
+                    append('.')
+                    append(semanticVersion.third)
+                    append("\")")
+                }
+        }
     }
-}

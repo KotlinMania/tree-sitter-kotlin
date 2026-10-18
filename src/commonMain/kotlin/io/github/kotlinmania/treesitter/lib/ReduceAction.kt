@@ -8,9 +8,7 @@ internal data class ReduceAction(
     val productionId: UShort,
 )
 
-internal typealias ReduceActionSet = MutableList<ReduceAction>
-
-internal fun tsReduceActionSetAdd(self: ReduceActionSet, newAction: ReduceAction) {
+internal fun tsReduceActionSetAdd(self: MutableList<ReduceAction>, newAction: ReduceAction) {
     for (action in self) {
         if (action.symbol == newAction.symbol && action.count == newAction.count) return
     }

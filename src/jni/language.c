@@ -1,5 +1,11 @@
 #include "utils.h"
 
+extern const TSLanguage *kts_rust_fixture_language(void);
+
+jlong JNICALL language_rust_fixture CRITICAL_NO_ARGS() {
+    return (jlong)kts_rust_fixture_language();
+}
+
 jlong JNICALL language_copy CRITICAL_ARGS(jlong self) {
     return (jlong)ts_language_copy((TSLanguage *)self);
 }
@@ -116,13 +122,13 @@ jstring JNICALL language_field_name_for_id(JNIEnv *env, jobject this, jshort id)
     return name ? (*env)->NewStringUTF(env, name) : NULL;
 }
 
-jint JNICALL language_field_id_for_name(JNIEnv *env, jobject this, jstring name) {
+jshort JNICALL language_field_id_for_name(JNIEnv *env, jobject this, jstring name) {
     TSLanguage *self = GET_POINTER(TSLanguage, this, Language_self);
     const char *field_name = (*env)->GetStringUTFChars(env, name, NULL);
     uint32_t length = (uint32_t)(*env)->GetStringUTFLength(env, name);
     uint16_t field_id = ts_language_field_id_for_name(self, field_name, length);
     (*env)->ReleaseStringUTFChars(env, name, field_name);
-    return (jint)field_id;
+    return (jshort)field_id;
 }
 
 jshort JNICALL language_next_state(JNIEnv *env, jobject this, jshort state, jshort symbol) {
@@ -144,25 +150,27 @@ void JNICALL language_check_version(JNIEnv *env, jobject this) {
 }
 
 const JNINativeMethod Language_methods[] = {
+    {"rustFixturePointer", "()J", (void *)&language_rust_fixture},
     {"copy", "(J)J", (void *)&language_copy},
-    {"getAbiVersion", "()I", (void *)&language_get_abi_version},
-    {"getVersion", "()I", (void *)&language_get_version},
-    {"getSymbolCount", "()I", (void *)&language_get_symbol_count},
-    {"getStateCount", "()I", (void *)&language_get_state_count},
-    {"getFieldCount", "()I", (void *)&language_get_field_count},
-    {"getName", "()Ljava/lang/String;", (void *)&language_get_name},
-    {"getMetadata", "()L" PACKAGE "Language$Metadata;", (void *)&language_get_metadata},
-    {"getSupertypes", "()[S", (void *)&language_get_supertypes},
-    {"symbolName", "(S)Ljava/lang/String;", (void *)&language_symbol_name},
-    {"symbolForName", "(Ljava/lang/String;Z)S", (void *)&language_symbol_for_name},
-    {"subtypes", "(S)[S", (void *)&language_subtypes},
-    {"isNamed", "(S)Z", (void *)&language_is_named},
-    {"isVisible", "(S)Z", (void *)&language_is_visible},
-    {"isSupertype", "(S)Z", (void *)&language_is_supertype},
-    {"fieldNameForId", "(S)Ljava/lang/String;", (void *)&language_field_name_for_id},
-    {"fieldIdForName", "(Ljava/lang/String;)S", (void *)&language_field_id_for_name},
-    {"nextState", "(SS)S", (void *)&language_next_state},
+    {"nativeAbiVersion", "()I", (void *)&language_get_abi_version},
+    {"nativeVersion", "()I", (void *)&language_get_version},
+    {"nativeSymbolCount", "()I", (void *)&language_get_symbol_count},
+    {"nativeStateCount", "()I", (void *)&language_get_state_count},
+    {"nativeFieldCount", "()I", (void *)&language_get_field_count},
+    {"nativeName", "()Ljava/lang/String;", (void *)&language_get_name},
+    {"nativeMetadata", "()L" PACKAGE "Language$Metadata;", (void *)&language_get_metadata},
+    {"nativeSupertypes", "()[S", (void *)&language_get_supertypes},
+    {"nativeSymbolName", "(S)Ljava/lang/String;", (void *)&language_symbol_name},
+    {"nativeSymbolForName", "(Ljava/lang/String;Z)S", (void *)&language_symbol_for_name},
+    {"nativeSubtypes", "(S)[S", (void *)&language_subtypes},
+    {"nativeIsNamed", "(S)Z", (void *)&language_is_named},
+    {"nativeIsVisible", "(S)Z", (void *)&language_is_visible},
+    {"nativeIsSupertype", "(S)Z", (void *)&language_is_supertype},
+    {"nativeFieldNameForId", "(S)Ljava/lang/String;", (void *)&language_field_name_for_id},
+    {"nativeFieldIdForName", "(Ljava/lang/String;)S", (void *)&language_field_id_for_name},
+    {"nativeNextState", "(SS)S", (void *)&language_next_state},
     {"checkVersion", "()V", (void *)&language_check_version},
 };
 
 const size_t Language_methods_size = sizeof Language_methods / sizeof(JNINativeMethod);
+

@@ -25,6 +25,7 @@ tmp/
 # AST distance reports and binaries
 port_status_report.md
 high_priority_ports.md
+port_lint_proposed_changes.md
 ast_distance_*.txt
 .cache/
 *.lock
@@ -35,10 +36,13 @@ kotlin-js-store/*
 !kotlin-js-store/wasm/yarn.lock
 tools/ast_distance/ast_distance
 tools/ast_distance/build/
+tools/ast_distance
+tools/
 
 # JVM heap dumps
 *.hprof
 java_pid*.hprof
+hs_err_*.log
 
 # macOS Finder metadata
 .DS_Store
@@ -69,3 +73,8 @@ DerivedData/
 *.xcuserstate
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
+deep_symbol_inventory.txt
+
+# npm install output for node-treesitter
+native/node-treesitter/build/
+native/node-treesitter/node_modules/

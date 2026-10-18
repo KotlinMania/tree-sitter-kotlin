@@ -12,7 +12,7 @@ internal data class TreeCursorEntry(
 internal class TreeCursor internal constructor(
     val tree: TSTree,
     val stack: MutableList<TreeCursorEntry>,
-    var rootAliasSymbol: TSSymbol,
+    var rootAliasSymbol: UShort,
 )
 
 internal enum class TreeCursorStep { None, Hidden, Visible }

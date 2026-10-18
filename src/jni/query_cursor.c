@@ -3,12 +3,19 @@
 static bool query_progress_callback(TSQueryCursorState *state) {
     ProgressPayload *progress_payload = (ProgressPayload *)state->payload;
     JNIEnv *env = progress_payload->env;
-    jobject offset = (*env)->AllocObject(env, global_class_cache.UInt);
-    (*env)->SetIntField(env, offset, global_field_cache.UInt_data,
-                        (jint)state->current_byte_offset);
-    jobject result = CALL_METHOD(Object, progress_payload->callback, Function1_invoke, offset);
-    (*env)->DeleteLocalRef(env, offset);
-    return (bool)(*env)->GetBooleanField(env, result, global_field_cache.Boolean_value);
+    jobject callback = progress_payload->callback;
+    if (!callback) return true;
+    jclass cls = (*env)->GetObjectClass(env, callback);
+    jmethodID mid = (*env)->GetMethodID(env, cls, "invoke-WZ4Q5Ns", "(I)Z");
+    if (!mid) {
+        (*env)->ExceptionClear(env);
+        mid = (*env)->GetMethodID(env, cls, "invoke", "(Lkotlin/UInt;)Z");
+    }
+    if (!mid) {
+        (*env)->ExceptionClear(env);
+        return true;
+    }
+    return (bool)(*env)->CallBooleanMethod(env, callback, mid, (jint)state->current_byte_offset);
 }
 
 jlong query_cursor_init CRITICAL_NO_ARGS() { return (jlong)ts_query_cursor_new(); }
@@ -146,7 +153,7 @@ const JNINativeMethod QueryCursor_methods[] = {
      (void *)&query_cursor_next_match},
     {"nextCapture", "(Ljava/util/List;L" PACKAGE "Tree;)Lkotlin/Pair;",
      (void *)&query_cursor_next_capture},
-    {"exec", "(JL" PACKAGE "Node;Lkotlin/jvm/functions/Function1;)V", (void *)&query_cursor_exec},
+    {"exec", "(JL" PACKAGE "Node;L" PACKAGE "QueryProgressCallback;)V", (void *)&query_cursor_exec},
 };
 
 const size_t QueryCursor_methods_size = sizeof QueryCursor_methods / sizeof(JNINativeMethod);

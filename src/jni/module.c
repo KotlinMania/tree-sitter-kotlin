@@ -117,7 +117,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM *vm, void *_reserved) {
     CACHE_FIELD(Parser, timeoutMicros, "J");
     CACHE_FIELD(Parser, language, "L" PACKAGE "Language;");
     CACHE_FIELD(Parser, includedRanges, "Ljava/util/List;");
-    CACHE_FIELD(Parser, logger, "Lkotlin/jvm/functions/Function2;");
+    CACHE_FIELD(Parser, logger, "L" PACKAGE "LogFunction;");
 
     CACHE_CLASS(PACKAGE, Point);
     CACHE_FIELD(Point, row, "I");

@@ -47,13 +47,14 @@ jboolean JNICALL lookahead_iterator_native_next(JNIEnv *env, jobject this) {
 const JNINativeMethod LookaheadIterator_methods[] = {
     {"init", "(JS)J", (void *)&lookahead_iterator_init},
     {"delete", "(J)V", (void *)&lookahead_iterator_delete},
-    {"getLanguage", "()L" PACKAGE "Language;", (void *)&lookahead_iterator_get_language},
-    {"getCurrentSymbol", "()S", (void *)&lookahead_iterator_get_current_symbol},
-    {"getCurrentSymbolName", "()Ljava/lang/String;",
+    {"nativeLanguage", "()L" PACKAGE "Language;", (void *)&lookahead_iterator_get_language},
+    {"nativeCurrentSymbol", "()S", (void *)&lookahead_iterator_get_current_symbol},
+    {"nativeCurrentSymbolName", "()Ljava/lang/String;",
      (void *)&lookahead_iterator_get_current_symbol_name},
-    {"reset", "(SL" PACKAGE "Language;)Z", (void *)&lookahead_iterator_reset},
+    {"nativeReset", "(SL" PACKAGE "Language;)Z", (void *)&lookahead_iterator_reset},
     {"nativeNext", "()Z", (void *)&lookahead_iterator_native_next},
 };
 
 const size_t LookaheadIterator_methods_size =
     sizeof LookaheadIterator_methods / sizeof(JNINativeMethod);
+

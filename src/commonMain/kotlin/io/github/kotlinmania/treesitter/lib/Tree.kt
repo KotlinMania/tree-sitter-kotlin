@@ -10,7 +10,7 @@ internal data class ParentCacheEntry(
     val child: Subtree,
     val parent: Subtree,
     val position: Length,
-    val aliasSymbol: TSSymbol,
+    val aliasSymbol: UShort,
 )
 
 /**

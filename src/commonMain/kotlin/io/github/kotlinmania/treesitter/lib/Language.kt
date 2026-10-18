@@ -18,26 +18,41 @@ internal data class TableEntry(
  * Kotlin mutability so the parser engine can step through the table in-place.
  */
 internal class LookaheadIterator internal constructor(
-    val language: TSLanguage,
+    var language: TSLanguage,
     var dataIndex: Int,
     var groupEnd: Int,
-    var state: TSStateId,
+    var state: UShort,
     var tableValue: UShort,
     var sectionIndex: UShort,
     var groupCount: UShort,
     var isSmallState: Boolean,
     var actions: List<TSParseAction>,
-    var symbol: TSSymbol,
-    var nextState: TSStateId,
+    var symbol: UShort,
+    var nextState: UShort,
     var actionCount: UShort,
-)
+) {
+    internal fun copyFrom(other: LookaheadIterator) {
+        language = other.language
+        dataIndex = other.dataIndex
+        groupEnd = other.groupEnd
+        state = other.state
+        tableValue = other.tableValue
+        sectionIndex = other.sectionIndex
+        groupCount = other.groupCount
+        isSmallState = other.isSmallState
+        actions = other.actions
+        symbol = other.symbol
+        nextState = other.nextState
+        actionCount = other.actionCount
+    }
+}
 
 /**
  * Look up the parse-table value for a given (state, symbol). Faithful port of the inline
  * function in language.h: for `state >= large_state_count` the small parse table is searched
  * group-by-group; for the dense large states it's a direct 2-D array index.
  */
-internal fun tsLanguageLookup(self: TSLanguage, state: TSStateId, symbol: TSSymbol): UShort {
+internal fun tsLanguageLookup(self: TSLanguage, state: UShort, symbol: UShort): UShort {
     val stateValue = state.toInt() and 0xFFFF
     return if (stateValue >= self.largeStateCount.toInt()) {
         val mapIdx = stateValue - self.largeStateCount.toInt()
@@ -49,7 +64,7 @@ internal fun tsLanguageLookup(self: TSLanguage, state: TSStateId, symbol: TSSymb
             i++
             val symbolCount = self.smallParseTable[i].toInt()
             i++
-            for (j in 0 until symbolCount) {
+            repeat(symbolCount) {
                 if (self.smallParseTable[i] == symbol) {
                     return sectionValue
                 }
@@ -62,10 +77,10 @@ internal fun tsLanguageLookup(self: TSLanguage, state: TSStateId, symbol: TSSymb
     }
 }
 
-internal fun tsLanguageHasActions(self: TSLanguage, state: TSStateId, symbol: TSSymbol): Boolean =
+internal fun tsLanguageHasActions(self: TSLanguage, state: UShort, symbol: UShort): Boolean =
     tsLanguageLookup(self, state, symbol) != 0.toUShort()
 
-internal fun tsLanguageStateIsPrimary(self: TSLanguage, state: TSStateId): Boolean =
+internal fun tsLanguageStateIsPrimary(self: TSLanguage, state: UShort): Boolean =
     if (self.abiVersion >= LANGUAGE_VERSION_WITH_PRIMARY_STATES) {
         state == self.primaryStateIds[state.toInt() and 0xFFFF]
     } else {
@@ -96,7 +111,7 @@ internal fun tsLanguageAliasSequence(self: TSLanguage, productionId: UInt): USho
     return UShortArray(width) { idx -> self.aliasSequences[start + idx] }
 }
 
-internal fun tsLanguageAliasAt(self: TSLanguage, productionId: UInt, childIndex: UInt): TSSymbol =
+internal fun tsLanguageAliasAt(self: TSLanguage, productionId: UInt, childIndex: UInt): UShort =
     if (productionId == 0u) {
         0u
     } else {
@@ -135,7 +150,7 @@ internal fun tsLanguageSupertypes(self: TSLanguage): UShortArray =
         UShortArray(0)
     }
 
-internal fun tsLanguageSubtypes(self: TSLanguage, supertype: TSSymbol): UShortArray {
+internal fun tsLanguageSubtypes(self: TSLanguage, supertype: UShort): UShortArray {
     if (self.abiVersion < LANGUAGE_VERSION_WITH_RESERVED_WORDS ||
         !tsLanguageSymbolMetadata(self, supertype).supertype
     ) {
@@ -159,7 +174,7 @@ internal fun tsLanguageName(self: TSLanguage): String? =
 
 internal fun tsLanguageFieldCount(self: TSLanguage): UInt = self.fieldCount
 
-internal fun tsLanguageTableEntry(self: TSLanguage, state: TSStateId, symbol: TSSymbol): TableEntry =
+internal fun tsLanguageTableEntry(self: TSLanguage, state: UShort, symbol: UShort): TableEntry =
     if (symbol == TS_BUILTIN_SYM_ERROR || symbol == TS_BUILTIN_SYM_ERROR_REPEAT) {
         TableEntry(actions = emptyList(), actionCount = 0u, isReusable = false)
     } else {
@@ -174,9 +189,9 @@ internal fun tsLanguageTableEntry(self: TSLanguage, state: TSStateId, symbol: TS
         TableEntry(actions = actions, actionCount = header.count.toUInt(), isReusable = header.reusable)
     }
 
-internal fun tsLanguageLexModeForState(self: TSLanguage, state: TSStateId): TSLexerMode = self.lexModes[state.toInt() and 0xFFFF]
+internal fun tsLanguageLexModeForState(self: TSLanguage, state: UShort): TSLexerMode = self.lexModes[state.toInt() and 0xFFFF]
 
-internal fun tsLanguageIsReservedWord(self: TSLanguage, state: TSStateId, symbol: TSSymbol): Boolean {
+internal fun tsLanguageIsReservedWord(self: TSLanguage, state: UShort, symbol: UShort): Boolean {
     val lexMode = tsLanguageLexModeForState(self, state)
     if (lexMode.reservedWordSetId > 0u) {
         val maxSize = self.maxReservedWordSetSize.toInt()
@@ -191,21 +206,22 @@ internal fun tsLanguageIsReservedWord(self: TSLanguage, state: TSStateId, symbol
     return false
 }
 
-internal fun tsLanguageSymbolMetadata(self: TSLanguage, symbol: TSSymbol): TSSymbolMetadata =
-    when (symbol) {
-        TS_BUILTIN_SYM_ERROR -> TSSymbolMetadata(visible = true, named = true, supertype = false)
-        TS_BUILTIN_SYM_ERROR_REPEAT -> TSSymbolMetadata(visible = false, named = false, supertype = false)
-        else -> self.symbolMetadata[symbol.toInt() and 0xFFFF]
+internal fun tsLanguageSymbolMetadata(self: TSLanguage, symbol: UShort): TSSymbolMetadata =
+    when {
+        symbol == TS_BUILTIN_SYM_ERROR -> TSSymbolMetadata(visible = true, named = true, supertype = false)
+        symbol == TS_BUILTIN_SYM_ERROR_REPEAT -> TSSymbolMetadata(visible = false, named = false, supertype = false)
+        (symbol.toInt() and 0xFFFF) < self.symbolMetadata.size -> self.symbolMetadata[symbol.toInt() and 0xFFFF]
+        else -> TSSymbolMetadata(visible = false, named = false, supertype = false)
     }
 
-internal fun tsLanguagePublicSymbol(self: TSLanguage, symbol: TSSymbol): TSSymbol =
+internal fun tsLanguagePublicSymbol(self: TSLanguage, symbol: UShort): UShort =
     if (symbol == TS_BUILTIN_SYM_ERROR) {
         symbol
     } else {
         self.publicSymbolMap[symbol.toInt() and 0xFFFF]
     }
 
-internal fun tsLanguageNextState(self: TSLanguage, state: TSStateId, symbol: TSSymbol): TSStateId {
+internal fun tsLanguageNextState(self: TSLanguage, state: UShort, symbol: UShort): UShort {
     if (symbol == TS_BUILTIN_SYM_ERROR || symbol == TS_BUILTIN_SYM_ERROR_REPEAT) return 0u
     if (symbol < self.tokenCount.toUShort()) {
         val entry = tsLanguageTableEntry(self, state, symbol)
@@ -220,7 +236,7 @@ internal fun tsLanguageNextState(self: TSLanguage, state: TSStateId, symbol: TSS
     return tsLanguageLookup(self, state, symbol)
 }
 
-internal fun tsLanguageSymbolName(self: TSLanguage, symbol: TSSymbol): String? =
+internal fun tsLanguageSymbolName(self: TSLanguage, symbol: UShort): String? =
     when {
         symbol == TS_BUILTIN_SYM_ERROR -> "ERROR"
         symbol == TS_BUILTIN_SYM_ERROR_REPEAT -> "_ERROR"
@@ -228,7 +244,7 @@ internal fun tsLanguageSymbolName(self: TSLanguage, symbol: TSSymbol): String? =
         else -> null
     }
 
-internal fun tsLanguageSymbolForName(self: TSLanguage, name: String, isNamed: Boolean): TSSymbol {
+internal fun tsLanguageSymbolForName(self: TSLanguage, name: String, isNamed: Boolean): UShort {
     if (isNamed && name == "ERROR") return TS_BUILTIN_SYM_ERROR
     val count = tsLanguageSymbolCount(self).toInt()
     for (i in 0 until count) {
@@ -241,7 +257,7 @@ internal fun tsLanguageSymbolForName(self: TSLanguage, name: String, isNamed: Bo
     return 0u
 }
 
-internal fun tsLanguageSymbolType(self: TSLanguage, symbol: TSSymbol): TSSymbolType {
+internal fun tsLanguageSymbolType(self: TSLanguage, symbol: UShort): TSSymbolType {
     val metadata = tsLanguageSymbolMetadata(self, symbol)
     return when {
         metadata.named && metadata.visible -> TSSymbolType.Regular
@@ -251,16 +267,16 @@ internal fun tsLanguageSymbolType(self: TSLanguage, symbol: TSSymbol): TSSymbolT
     }
 }
 
-internal fun tsLanguageFieldNameForId(self: TSLanguage, id: TSFieldId): String? {
+internal fun tsLanguageFieldNameForId(self: TSLanguage, id: UShort): String? {
     val count = tsLanguageFieldCount(self)
-    return if (count > 0u && id <= count.toUShort()) {
+    return if (count > 0u && id > 0u && id <= count.toUShort()) {
         self.fieldNames[id.toInt() and 0xFFFF]
     } else {
         null
     }
 }
 
-internal fun tsLanguageFieldIdForName(self: TSLanguage, name: String): TSFieldId {
+internal fun tsLanguageFieldIdForName(self: TSLanguage, name: String): UShort {
     val count = tsLanguageFieldCount(self).toInt()
     for (i in 1..count) {
         if (self.fieldNames[i] == name) return i.toUShort()
@@ -268,7 +284,7 @@ internal fun tsLanguageFieldIdForName(self: TSLanguage, name: String): TSFieldId
     return 0u
 }
 
-internal fun tsLanguageLookaheads(self: TSLanguage, state: TSStateId): LookaheadIterator {
+internal fun tsLanguageLookaheads(self: TSLanguage, state: UShort): LookaheadIterator {
     val stateValue = state.toInt() and 0xFFFF
     val isSmallState = stateValue >= self.largeStateCount.toInt()
     return if (isSmallState) {
@@ -276,8 +292,8 @@ internal fun tsLanguageLookaheads(self: TSLanguage, state: TSStateId): Lookahead
         val groupCount = self.smallParseTable[index]
         LookaheadIterator(
             language = self,
-            dataIndex = index + 1,
-            groupEnd = index + 2,
+            dataIndex = index,
+            groupEnd = index + 1,
             state = state,
             tableValue = 0u,
             sectionIndex = 0u,
@@ -306,7 +322,75 @@ internal fun tsLanguageLookaheads(self: TSLanguage, state: TSStateId): Lookahead
     }
 }
 
-internal fun tsLanguageAliasesForSymbol(self: TSLanguage, originalSymbol: TSSymbol): List<TSSymbol> {
+internal fun tsLookaheadIteratorNew(self: TSLanguage, state: UShort): LookaheadIterator? {
+    if (state.toUInt() >= self.stateCount) return null
+    return tsLanguageLookaheads(self, state)
+}
+
+internal fun tsLookaheadIteratorResetState(self: LookaheadIterator, state: UShort): Boolean {
+    if (state.toUInt() >= self.language.stateCount) return false
+    self.copyFrom(tsLanguageLookaheads(self.language, state))
+    return true
+}
+
+internal fun tsLookaheadIteratorReset(
+    self: LookaheadIterator,
+    language: TSLanguage,
+    state: UShort,
+): Boolean {
+    if (state.toUInt() >= language.stateCount) return false
+    self.copyFrom(tsLanguageLookaheads(language, state))
+    return true
+}
+
+internal fun tsLookaheadIteratorNext(self: LookaheadIterator): Boolean {
+    if (self.isSmallState) {
+        self.dataIndex++
+        if (self.dataIndex == self.groupEnd) {
+            if (self.groupCount == 0.toUShort()) return false
+            self.groupCount = (self.groupCount - 1u).toUShort()
+            self.tableValue = self.language.smallParseTable[self.dataIndex]
+            self.dataIndex++
+            val symbolCount = self.language.smallParseTable[self.dataIndex].toInt()
+            self.dataIndex++
+            self.groupEnd = self.dataIndex + symbolCount
+            self.symbol = self.language.smallParseTable[self.dataIndex]
+        } else {
+            self.symbol = self.language.smallParseTable[self.dataIndex]
+            return true
+        }
+    } else {
+        do {
+            self.dataIndex++
+            self.symbol = (self.symbol + 1u).toUShort()
+            if (self.symbol.toUInt() >= self.language.symbolCount) return false
+            self.tableValue = self.language.parseTable[self.dataIndex]
+        } while (self.tableValue == 0.toUShort())
+    }
+
+    if (self.symbol.toUInt() < self.language.tokenCount) {
+        val actionIndex = self.tableValue.toInt()
+        val header = self.language.parseActions[actionIndex] as TSParseActionEntry.Header
+        self.actionCount = header.count.toUShort()
+        self.actions =
+            List(header.count.toInt()) { i ->
+                (self.language.parseActions[actionIndex + 1 + i] as TSParseActionEntry.Action).action
+            }
+        self.nextState = 0u
+    } else {
+        self.actionCount = 0u
+        self.actions = emptyList()
+        self.nextState = self.tableValue
+    }
+    return true
+}
+
+internal fun tsLookaheadIteratorCurrentSymbol(self: LookaheadIterator): UShort = self.symbol
+
+internal fun tsLookaheadIteratorCurrentSymbolName(self: LookaheadIterator): String? =
+    tsLanguageSymbolName(self.language, self.symbol)
+
+internal fun tsLanguageAliasesForSymbol(self: TSLanguage, originalSymbol: UShort): List<UShort> {
     val defaultSlice = listOf(self.publicSymbolMap[originalSymbol.toInt() and 0xFFFF])
     var idx = 0
     while (idx < self.aliasMap.size) {
@@ -317,7 +401,6 @@ internal fun tsLanguageAliasesForSymbol(self: TSLanguage, originalSymbol: TSSymb
         idx++
         if (symbol == originalSymbol) {
             val from = idx
-            val to = idx + count
             return List(count) { self.aliasMap[from + it] }
                 .let { if (it.isEmpty()) defaultSlice else it }
         }

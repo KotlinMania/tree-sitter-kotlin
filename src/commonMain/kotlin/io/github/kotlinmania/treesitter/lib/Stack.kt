@@ -1,21 +1,15 @@
 // port-lint: source lib/src/stack.h
 package io.github.kotlinmania.treesitter.lib
 
-internal typealias StackVersion = UInt
-
-internal val STACK_VERSION_NONE: StackVersion = UInt.MAX_VALUE
+internal const val STACK_VERSION_NONE: UInt = UInt.MAX_VALUE
 
 internal data class StackSlice(
     val subtrees: List<Subtree>,
-    val version: StackVersion,
+    val version: UInt,
 )
-
-internal typealias StackSliceArray = List<StackSlice>
 
 internal data class StackSummaryEntry(
     val position: Length,
     val depth: UInt,
-    val state: TSStateId,
+    val state: UShort,
 )
-
-internal typealias StackSummary = List<StackSummaryEntry>

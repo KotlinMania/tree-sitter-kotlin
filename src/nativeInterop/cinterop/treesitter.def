@@ -51,3 +51,6 @@ static inline void *kts_malloc(uint64_t size) {
 static inline void kts_free(void *ptr) {
     return ts_free(ptr);
 }
+
+const TSLanguage *kts_rust_fixture_language(void);
+

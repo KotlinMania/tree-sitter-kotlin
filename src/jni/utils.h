@@ -7,7 +7,7 @@
 #define _cat3(a, b, c) _xcat(a, b, c)
 #define _cat2(a, b) _xcat(a, _, b)
 
-#define PACKAGE "io/github/treesitter/ktreesitter/"
+#define PACKAGE "io/github/kotlinmania/treesitter/"
 
 #define GET_FIELD(jtype, object, field)                                                            \
     (*env)->_cat3(Get, jtype, Field)(env, (object), global_field_cache.field)

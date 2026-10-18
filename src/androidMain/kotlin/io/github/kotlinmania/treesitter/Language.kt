@@ -2,6 +2,20 @@ package io.github.kotlinmania.treesitter
 
 import dalvik.annotation.optimization.CriticalNative
 import dalvik.annotation.optimization.FastNative
+import io.github.kotlinmania.treesitter.lib.TSLanguage
+import io.github.kotlinmania.treesitter.lib.tsLanguageAbiVersion
+import io.github.kotlinmania.treesitter.lib.tsLanguageFieldCount
+import io.github.kotlinmania.treesitter.lib.tsLanguageFieldIdForName
+import io.github.kotlinmania.treesitter.lib.tsLanguageFieldNameForId
+import io.github.kotlinmania.treesitter.lib.tsLanguageName
+import io.github.kotlinmania.treesitter.lib.tsLanguageNextState
+import io.github.kotlinmania.treesitter.lib.tsLanguageStateCount
+import io.github.kotlinmania.treesitter.lib.tsLanguageSubtypes
+import io.github.kotlinmania.treesitter.lib.tsLanguageSupertypes
+import io.github.kotlinmania.treesitter.lib.tsLanguageSymbolCount
+import io.github.kotlinmania.treesitter.lib.tsLanguageSymbolForName
+import io.github.kotlinmania.treesitter.lib.tsLanguageSymbolName
+import io.github.kotlinmania.treesitter.lib.tsLanguageVersion
 
 /**
  * A class that defines how to parse a particular language.
@@ -10,7 +24,7 @@ import dalvik.annotation.optimization.FastNative
  * [ABI version][abiVersion] number that corresponds to the current CLI version.
  *
  * @constructor Create a new instance from the given language pointer.
- * @param language A pointer to a `TSLanguage` cast to [Long].
+ * @param language A pointer to a `TSLanguage` cast to [Long], a [TSLanguage], or a `LanguageFn`.
  * @throws [IllegalArgumentException]
  *  If the pointer is invalid or the [version][abiVersion] is incompatible.
  */
@@ -19,13 +33,49 @@ actual class Language
     actual constructor(
         language: Any,
     ) {
+        internal val ktLanguage: TSLanguage?
+
         @JvmField
-        internal val self: Long =
-            (language as? Long)?.takeIf { it > 0L }
-                ?: throw IllegalArgumentException("Invalid language: $language")
+        internal val self: Long
 
         init {
-            checkVersion()
+            System.loadLibrary("ktreesitter")
+            when (val unwrapped = unwrapLanguageInput(language)) {
+                is Language -> {
+                    ktLanguage = unwrapped.ktLanguage
+                    self = unwrapped.self
+                }
+
+                is TSLanguage -> {
+                    checkLanguageAbiVersion(unwrapped.abiVersion)
+                    ktLanguage = unwrapped
+                    self = rustFixturePointer()
+                }
+
+                is Long -> {
+                    if (unwrapped <= 0L) {
+                        throw IllegalArgumentException("Invalid language: $language")
+                    }
+                    val registered = lookupTsLanguage(unwrapped)
+                    if (registered != null) {
+                        checkLanguageAbiVersion(registered.abiVersion)
+                        ktLanguage = registered
+                        self = rustFixturePointer()
+                    } else {
+                        ktLanguage = null
+                        self = unwrapped
+                    }
+                }
+
+                else -> {
+                    throw IllegalArgumentException("Invalid language: $language")
+                }
+            }
+            if (ktLanguage != null) {
+                checkLanguageAbiVersion(abiVersion)
+            } else {
+                checkVersion()
+            }
         }
 
         /**
@@ -35,28 +85,28 @@ actual class Language
          */
         @get:JvmName("getAbiVersion")
         actual val abiVersion: UInt
-            @FastNative external get
+            get() = ktLanguage?.let(::tsLanguageAbiVersion) ?: nativeAbiVersion()
 
         /** The ABI version number for this language. */
         @Deprecated("version is deprecated", ReplaceWith("abiVersion"), DeprecationLevel.ERROR)
         @get:JvmName("getVersion")
         actual val version: UInt
-            @FastNative external get
+            get() = ktLanguage?.let(::tsLanguageVersion) ?: nativeVersion()
 
         /** The number of distinct node types in this language. */
         @get:JvmName("getSymbolCount")
         actual val symbolCount: UInt
-            @FastNative external get
+            get() = ktLanguage?.let(::tsLanguageSymbolCount) ?: nativeSymbolCount()
 
         /** The number of valid states in this language. */
         @get:JvmName("getStateCount")
         actual val stateCount: UInt
-            @FastNative external get
+            get() = ktLanguage?.let(::tsLanguageStateCount) ?: nativeStateCount()
 
         /** The number of distinct field names in this language. */
         @get:JvmName("getFieldCount")
         actual val fieldCount: UInt
-            @FastNative external get
+            get() = ktLanguage?.let(::tsLanguageFieldCount) ?: nativeFieldCount()
 
         /**
          * The name of the language, if available.
@@ -64,7 +114,7 @@ actual class Language
          * @since 0.25.0
          */
         actual val name: String?
-            @FastNative external get
+            get() = if (ktLanguage != null) tsLanguageName(ktLanguage) else nativeName()
 
         /**
          * The metadata of the language, if available.
@@ -72,7 +122,7 @@ actual class Language
          * @since 0.25.0
          */
         actual val metadata: Metadata?
-            @FastNative external get
+            get() = if (ktLanguage != null) tsLanguageMetadataToPublic(ktLanguage) else nativeMetadata()
 
         /**
          * The supertype symbols of the language.
@@ -82,24 +132,25 @@ actual class Language
         @OptIn(ExperimentalUnsignedTypes::class)
         @get:JvmName("getSupertypes")
         actual val supertypes: UShortArray
-            @FastNative external get
+            get() = ktLanguage?.let(::tsLanguageSupertypes) ?: nativeSupertypes()
 
         /**
          * Get another reference to the language.
          *
          * @since 0.24.0
          */
-        actual fun copy() = Language(copy(self))
+        actual fun copy(): Language =
+            if (ktLanguage != null) Language(ktLanguage) else Language(copy(self))
 
         /** Get the node type for the given numerical ID. */
-        @FastNative
         @JvmName("symbolName")
-        actual external fun symbolName(symbol: UShort): String?
+        actual fun symbolName(symbol: UShort): String? =
+            if (ktLanguage != null) tsLanguageSymbolName(ktLanguage, symbol) else nativeSymbolName(symbol)
 
         /** Get the numerical ID for the given node type. */
-        @FastNative
         @JvmName("symbolForName")
-        actual external fun symbolForName(name: String, isNamed: Boolean): UShort
+        actual fun symbolForName(name: String, isNamed: Boolean): UShort =
+            if (ktLanguage != null) tsLanguageSymbolForName(ktLanguage, name, isNamed) else nativeSymbolForName(name, isNamed)
 
         /**
          * Get the subtype symbols for the given supertype symbol
@@ -107,43 +158,43 @@ actual class Language
          * @since 0.25.0
          * @see supertypes
          */
-        @FastNative
         @JvmName("subtypes")
         @OptIn(ExperimentalUnsignedTypes::class)
-        actual external fun subtypes(supertype: UShort): UShortArray
+        actual fun subtypes(supertype: UShort): UShortArray =
+            if (ktLanguage != null) tsLanguageSubtypes(ktLanguage, supertype) else nativeSubtypes(supertype)
 
         /**
          * Check if the node for the given numerical ID is named
          *
          * @see [Node.isNamed]
          */
-        @FastNative
         @JvmName("isNamed")
-        actual external fun isNamed(symbol: UShort): Boolean
+        actual fun isNamed(symbol: UShort): Boolean =
+            if (ktLanguage != null) tsLanguageIsNamed(ktLanguage, symbol) else nativeIsNamed(symbol)
 
         /** Check if the node for the given numerical ID is visible. */
-        @FastNative
         @JvmName("isVisible")
-        actual external fun isVisible(symbol: UShort): Boolean
+        actual fun isVisible(symbol: UShort): Boolean =
+            if (ktLanguage != null) tsLanguageIsVisible(ktLanguage, symbol) else nativeIsVisible(symbol)
 
         /**
          * Check if the node for the given numerical ID is a supertype.
          *
          * @since 0.24.0
          */
-        @FastNative
         @JvmName("isSupertype")
-        actual external fun isSupertype(symbol: UShort): Boolean
+        actual fun isSupertype(symbol: UShort): Boolean =
+            if (ktLanguage != null) tsLanguageIsSupertype(ktLanguage, symbol) else nativeIsSupertype(symbol)
 
         /** Get the field name for the given numerical id. */
-        @FastNative
         @JvmName("fieldNameForId")
-        actual external fun fieldNameForId(id: UShort): String?
+        actual fun fieldNameForId(id: UShort): String? =
+            if (ktLanguage != null) tsLanguageFieldNameForId(ktLanguage, id) else nativeFieldNameForId(id)
 
         /** Get the numerical ID for the given field name. */
-        @FastNative
         @JvmName("fieldIdForName")
-        actual external fun fieldIdForName(name: String): UShort
+        actual fun fieldIdForName(name: String): UShort =
+            if (ktLanguage != null) tsLanguageFieldIdForName(ktLanguage, name) else nativeFieldIdForName(name)
 
         /**
          * Get the next parse state.
@@ -157,9 +208,9 @@ actual class Language
          * language.nextState(node.parseState, node.grammarSymbol)
          * ```
          */
-        @FastNative
         @JvmName("nextState")
-        actual external fun nextState(state: UShort, symbol: UShort): UShort
+        actual fun nextState(state: UShort, symbol: UShort): UShort =
+            if (ktLanguage != null) tsLanguageNextState(ktLanguage, state, symbol) else nativeNextState(state, symbol)
 
         /**
          * Create a new [lookahead iterator][LookaheadIterator] for the given parse state.
@@ -191,6 +242,74 @@ actual class Language
         @Throws(IllegalArgumentException::class)
         private external fun checkVersion()
 
+        @FastNative
+        @JvmName("nativeAbiVersion")
+        private external fun nativeAbiVersion(): UInt
+
+        @FastNative
+        @JvmName("nativeVersion")
+        private external fun nativeVersion(): UInt
+
+        @FastNative
+        @JvmName("nativeSymbolCount")
+        private external fun nativeSymbolCount(): UInt
+
+        @FastNative
+        @JvmName("nativeStateCount")
+        private external fun nativeStateCount(): UInt
+
+        @FastNative
+        @JvmName("nativeFieldCount")
+        private external fun nativeFieldCount(): UInt
+
+        @FastNative
+        private external fun nativeName(): String?
+
+        @FastNative
+        private external fun nativeMetadata(): Metadata?
+
+        @FastNative
+        @OptIn(ExperimentalUnsignedTypes::class)
+        @JvmName("nativeSupertypes")
+        private external fun nativeSupertypes(): UShortArray
+
+        @FastNative
+        @JvmName("nativeSymbolName")
+        private external fun nativeSymbolName(symbol: UShort): String?
+
+        @FastNative
+        @JvmName("nativeSymbolForName")
+        private external fun nativeSymbolForName(name: String, isNamed: Boolean): UShort
+
+        @FastNative
+        @OptIn(ExperimentalUnsignedTypes::class)
+        @JvmName("nativeSubtypes")
+        private external fun nativeSubtypes(supertype: UShort): UShortArray
+
+        @FastNative
+        @JvmName("nativeIsNamed")
+        private external fun nativeIsNamed(symbol: UShort): Boolean
+
+        @FastNative
+        @JvmName("nativeIsVisible")
+        private external fun nativeIsVisible(symbol: UShort): Boolean
+
+        @FastNative
+        @JvmName("nativeIsSupertype")
+        private external fun nativeIsSupertype(symbol: UShort): Boolean
+
+        @FastNative
+        @JvmName("nativeFieldNameForId")
+        private external fun nativeFieldNameForId(id: UShort): String?
+
+        @FastNative
+        @JvmName("nativeFieldIdForName")
+        private external fun nativeFieldIdForName(name: String): UShort
+
+        @FastNative
+        @JvmName("nativeNextState")
+        private external fun nativeNextState(state: UShort, symbol: UShort): UShort
+
         /**
          * A class containing the [Language] metadata.
          *
@@ -216,10 +335,10 @@ actual class Language
         private companion object {
             @JvmStatic
             @CriticalNative
-            private external fun copy(self: Long): Long
+            private external fun rustFixturePointer(): Long
 
-            init {
-                System.loadLibrary("ktreesitter")
-            }
+            @JvmStatic
+            @CriticalNative
+            private external fun copy(self: Long): Long
         }
     }

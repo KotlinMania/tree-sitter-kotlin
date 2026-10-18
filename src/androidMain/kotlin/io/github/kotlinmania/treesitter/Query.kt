@@ -154,12 +154,7 @@ actual class Query
                                     "second argument to #$pred must be a string literal, got @$value",
                                 )
                             }
-                            val pattern =
-                                try {
-                                    Regex(stringValues[t2.value])
-                                } catch (cause: IllegalArgumentException) {
-                                    throw QueryError.Predicate(row, "pattern error", cause)
-                                }
+                            val pattern = QueryPredicate.Match.compilePattern(row, stringValues[t2.value])
                             val value =
                                 QueryPredicate.Match(
                                     pred,
