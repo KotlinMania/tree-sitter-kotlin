@@ -74,6 +74,8 @@ static const char *parse_read_callback(void *payload, uint32_t byte_index, TSPoi
     const char *last_chars = read_payload->last_result.chars;
     if (last_string) {
         (*env)->ReleaseStringUTFChars(env, last_string, last_chars);
+        read_payload->last_result.string = NULL;
+        read_payload->last_result.chars = NULL;
     }
 
     jobject point = marshal_point(env, position);
@@ -91,15 +93,21 @@ static const char *parse_read_callback(void *payload, uint32_t byte_index, TSPoi
         }
     }
     (*env)->DeleteLocalRef(env, point);
-    if ((*env)->ExceptionCheck(env))
-        return NULL;
-    if (char_sequence == NULL)
-        return NULL;
+    if ((*env)->ExceptionCheck(env)) {
+        *bytes_read = 0;
+        return "";
+    }
+    if (char_sequence == NULL) {
+        *bytes_read = 0;
+        return "";
+    }
 
     jstring string = (jstring)CALL_METHOD_NO_ARGS(Object, char_sequence, CharSequence_toString);
     (*env)->DeleteLocalRef(env, char_sequence);
-    if ((*env)->ExceptionCheck(env))
-        return NULL;
+    if ((*env)->ExceptionCheck(env)) {
+        *bytes_read = 0;
+        return "";
+    }
 
     const char *result = (*env)->GetStringUTFChars(env, string, NULL);
     *bytes_read = (uint32_t)(*env)->GetStringUTFLength(env, string);
