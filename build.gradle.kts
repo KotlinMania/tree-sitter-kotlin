@@ -1090,15 +1090,16 @@ val compileTreesitterJni =
         }
     }
 
-tasks.named<Test>("jvmTest") {
-    dependsOn(compileTreesitterJni)
-    systemProperty(
-        "java.library.path",
-        layout.buildDirectory
-            .dir("natives")
-            .get()
-            .asFile.absolutePath,
-    )
+tasks.withType<Test>().configureEach {
+    if (name == "jvmTest" || name == "testAndroidHostTest") {
+        dependsOn(compileTreesitterJni)
+        val nativesPath = layout.buildDirectory.dir("natives").get().asFile.absolutePath
+        val existing = systemProperties["java.library.path"] as? String
+        systemProperty(
+            "java.library.path",
+            if (existing != null) "$nativesPath:$existing" else nativesPath,
+        )
+    }
 }
 
 // Patch generated SPM Package.swift to include minimum macOS platform for Swift Concurrency

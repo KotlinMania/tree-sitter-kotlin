@@ -22,6 +22,10 @@ static struct _kts_FILE kts_stdout_obj = { 0 };
 FILE *stderr = &kts_stderr_obj;
 FILE *stdout = &kts_stdout_obj;
 
+int fclose(FILE *stream) { (void)stream; return 0; }
+FILE *fdopen(int fd, const char *mode) { (void)fd; (void)mode; return NULL; }
+size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream) { (void)ptr; (void)size; (void)nmemb; (void)stream; return size * nmemb; }
+
 #define KTS_WASM_PAGE_SIZE 65536u
 
 typedef struct {
