@@ -1,11 +1,6 @@
 // port-lint: source util.rs
-@file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
-
 package io.github.kotlinmania.treesitter.util
 
-import kotlin.native.HiddenFromObjC
-
-@HiddenFromObjC
 class CBufferIter<T> internal constructor(
     private val items: List<T>,
     private val release: (() -> Unit)? = null,

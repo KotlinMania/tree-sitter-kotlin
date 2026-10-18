@@ -605,7 +605,6 @@ class LanguageTest {
         val engine = WasmEngine.new()
         val store = WasmStore.new(engine)
         assertEquals(0, store.languageCount())
-        assertEquals(0, store.languageCount)
 
         val err =
             assertFailsWith<WasmError> {

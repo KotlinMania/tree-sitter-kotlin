@@ -1,18 +1,14 @@
 // port-lint: source wasm_language.rs
-@file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
-
 package io.github.kotlinmania.treesitter.wasmlanguage
 
 import io.github.kotlinmania.treesitter.Language
 import io.github.kotlinmania.treesitter.Parser
-import kotlin.native.HiddenFromObjC
 
 internal fun useWasmtime(): WasmEngine = WasmEngine.new()
 
 /**
  * An engine handle for WebAssembly language evaluation.
  */
-@HiddenFromObjC
 class WasmEngine internal constructor(
     internal val pointer: Long = 0L,
 ) {
@@ -21,7 +17,6 @@ class WasmEngine internal constructor(
     }
 }
 
-@HiddenFromObjC
 class WasmEngineT internal constructor(
     internal val engine: WasmEngine = WasmEngine(),
 )
@@ -29,17 +24,13 @@ class WasmEngineT internal constructor(
 /**
  * A store for loading and managing WebAssembly languages.
  */
-@HiddenFromObjC
 class WasmStore internal constructor(
     internal val pointer: Long = 0L,
 ) : AutoCloseable {
     private var closed: Boolean = false
     private val loadedLanguages = mutableListOf<Language>()
 
-    val languageCount: Int
-        get() = loadedLanguages.size
-
-    fun languageCount(): Int = languageCount
+    fun languageCount(): Int = loadedLanguages.size
 
     fun loadLanguage(name: String, bytes: ByteArray): Language {
         check(!closed) { "WasmStore is closed" }
@@ -65,7 +56,6 @@ class WasmStore internal constructor(
 /**
  * An error that occurred while loading or executing a WebAssembly language.
  */
-@HiddenFromObjC
 data class WasmError(
     val kind: WasmErrorKind,
     override val message: String,
@@ -91,7 +81,6 @@ data class WasmError(
 /**
  * The kind of WebAssembly error.
  */
-@HiddenFromObjC
 enum class WasmErrorKind {
     Parse,
     Compile,
@@ -102,13 +91,11 @@ enum class WasmErrorKind {
 /**
  * Check if the language is a WebAssembly language.
  */
-@HiddenFromObjC
 fun Language.isWasm(): Boolean = false
 
 /**
  * Set the WebAssembly store for the parser.
  */
-@HiddenFromObjC
 fun Parser.setWasmStore(store: WasmStore) {
     // Stores the wasm store on the parser
 }
@@ -116,5 +103,4 @@ fun Parser.setWasmStore(store: WasmStore) {
 /**
  * Take the WebAssembly store from the parser, if set.
  */
-@HiddenFromObjC
 fun Parser.takeWasmStore(): WasmStore? = null

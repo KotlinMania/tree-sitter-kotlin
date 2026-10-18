@@ -1,5 +1,3 @@
-@file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
-
 package io.github.kotlinmania.treesitter
 
 import io.github.kotlinmania.treesitter.lib.TSLanguage
@@ -8,7 +6,6 @@ import io.github.kotlinmania.treesitter.lib.tsLanguageMetadataOf
 import io.github.kotlinmania.treesitter.lib.tsLanguageSymbolType
 import io.github.kotlinmania.treesitterlanguage.LanguageFn
 import io.github.kotlinmania.treesitterlanguage.LanguageProvider
-import kotlin.native.HiddenFromObjC
 
 private val registeredTsLanguages = mutableMapOf<Long, TSLanguage>()
 private var nextTsLanguageId: Long = 0x7FFF_0000_0001L
@@ -66,14 +63,12 @@ internal fun tsLanguageIsSupertype(self: TSLanguage, symbol: UShort): Boolean =
 /**
  * Construct a [Language] from a generated [LanguageFn] descriptor.
  */
-@HiddenFromObjC
 @Throws(IllegalArgumentException::class)
 fun Language(builder: LanguageFn): Language = Language(builder.intoRaw().call())
 
 /**
  * Convert a generated [LanguageFn] descriptor into a [Language].
  */
-@HiddenFromObjC
 @Throws(IllegalArgumentException::class)
 fun LanguageFn.toLanguage(): Language = Language(this)
 
