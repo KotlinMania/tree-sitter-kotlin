@@ -19,34 +19,57 @@ const val TREE_SITTER_LANGUAGE_VERSION: UInt = 15u
 const val TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION: UInt = 13u
 
 @HiddenFromObjC
-class TSLanguage(val ptr: Long)
+class TSLanguage(
+    val ptr: Long,
+)
 
 @HiddenFromObjC
-class TSParser(val ptr: Long)
+class TSParser(
+    val ptr: Long,
+)
 
 @HiddenFromObjC
-class TSParseState(val ptr: Long, val currentByteOffset: ULong = 0uL, val hasError: Boolean = false)
+class TSParseState(
+    val ptr: Long,
+    val currentByteOffset: ULong = 0uL,
+    val hasError: Boolean = false,
+)
 
 @HiddenFromObjC
-class TSTree(val ptr: Long)
+class TSTree(
+    val ptr: Long,
+)
 
 @HiddenFromObjC
-class TSNode(val node: Node)
+class TSNode(
+    val node: Node,
+)
 
 @HiddenFromObjC
-class TSTreeCursor(val cursor: TreeCursor)
+class TSTreeCursor(
+    val cursor: TreeCursor,
+)
 
 @HiddenFromObjC
-class TSQuery(val ptr: Long)
+class TSQuery(
+    val ptr: Long,
+)
 
 @HiddenFromObjC
-class TSQueryCursor(val ptr: Long)
+class TSQueryCursor(
+    val ptr: Long,
+)
 
 @HiddenFromObjC
-class TSQueryCursorState(val ptr: Long, val currentByteOffset: ULong = 0uL)
+class TSQueryCursorState(
+    val ptr: Long,
+    val currentByteOffset: ULong = 0uL,
+)
 
 @HiddenFromObjC
-class TSLookaheadIterator(val ptr: Long)
+class TSLookaheadIterator(
+    val ptr: Long,
+)
 
 @HiddenFromObjC
 object LanguageFfi {

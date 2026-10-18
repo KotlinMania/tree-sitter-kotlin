@@ -84,6 +84,31 @@ fun optionalTrimmedProperty(name: String): String? =
 val enabledFeatureNames = csvProperty("project.features")
 val benchmarkEnabled = "benchmark" in enabledFeatureNames
 val benchmarkTargetNames = csvProperty("project.benchmark.targets")
+
+// ============================================================================
+// Native C bindings — per-channel opt-in gates (gradle.properties
+// `project.ffi.{native,jvm,napi,name}`). All default off.
+// Transliterated from libc-kotlin's build.gradle.kts; generalized so tasks,
+// file paths, and npm package names all derive from project.ffi.name.
+// ============================================================================
+fun boolProperty(name: String, default: Boolean = false): Boolean =
+    providers.gradleProperty(name).map { it.trim().lowercase() == "true" }.getOrElse(default)
+
+val nativeFfiEnabled = boolProperty("project.ffi.native")
+val jvmFfiEnabled = boolProperty("project.ffi.jvm")
+val napiFfiEnabled = boolProperty("project.ffi.napi")
+
+val ffiNameRaw = providers.gradleProperty("project.ffi.name").getOrElse("TreeSitter").trim()
+val ffiName = ffiNameRaw.replaceFirstChar { it.uppercase() } // TreeSitter
+val ffiNameLower = ffiNameRaw.lowercase() // treesitter
+val ffiDefFile = "src/nativeInterop/cinterop/$ffiName.def"
+val ffiWrapperBase = "${ffiNameLower}_wrapper"
+val ffiNapiDir = "native/node-$ffiNameLower" // native/node-treesitter
+val ffiNpmPackage = "@kotlinmania/$ffiNameLower-native-bindings" // @kotlinmania/treesitter-native-bindings
+
+if (nativeFfiEnabled || jvmFfiEnabled || napiFfiEnabled) {
+    println("FFI channels enabled: native=$nativeFfiEnabled jvm=$jvmFfiEnabled napi=$napiFfiEnabled name=$ffiName")
+}
 val commonBenchmarkBundleName = optionalTrimmedProperty("project.dependencies.commonBenchmarkBundle")
 val commonBenchmarkDependencyBundle =
     commonBenchmarkBundleName?.let { bundleName ->
@@ -1034,7 +1059,11 @@ val compileTreesitterJni =
         val jniDir = file("src/jni")
         val cSource = treesitterVendorDir.resolve("lib/src/lib.c")
         val extCSource = file("src/nativeInterop/cinterop/treesitter_ext.c")
-        val outDir = layout.buildDirectory.dir("natives").get().asFile
+        val outDir =
+            layout.buildDirectory
+                .dir("natives")
+                .get()
+                .asFile
         inputs.dir(jniDir)
         inputs.file(cSource)
         inputs.file(extCSource)
@@ -1043,8 +1072,14 @@ val compileTreesitterJni =
         doLast {
             outDir.mkdirs()
             val javaHome = System.getProperty("java.home") ?: System.getenv("JAVA_HOME") ?: ""
-            val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
-            val isMac = org.gradle.internal.os.OperatingSystem.current().isMacOsX
+            val isWindows =
+                org.gradle.internal.os.OperatingSystem
+                    .current()
+                    .isWindows
+            val isMac =
+                org.gradle.internal.os.OperatingSystem
+                    .current()
+                    .isMacOsX
 
             val (libName, osInclude) =
                 when {
@@ -1060,29 +1095,31 @@ val compileTreesitterJni =
                 val execOps = project.serviceOf<ExecOperations>()
                 try {
                     val jniSources = jniDir.listFiles { _, name -> name.endsWith(".c") }?.map { it.absolutePath } ?: emptyList()
-                    val cmd = mutableListOf(
-                        "clang",
-                        "-shared",
-                        "-O2",
-                        "-I${javaInclude.absolutePath}",
-                        "-I${javaOsInclude.absolutePath}",
-                        "-I${jniDir.absolutePath}",
-                        "-I${treesitterVendorDir.resolve("lib/include").absolutePath}",
-                        "-I${treesitterVendorDir.resolve("lib/src").absolutePath}",
-                        "-DTREE_SITTER_HIDE_SYMBOLS",
-                        "-D_DEFAULT_SOURCE",
-                        "-D_POSIX_C_SOURCE=200112L",
-                        cSource.absolutePath,
-                        extCSource.absolutePath,
-                    )
+                    val cmd =
+                        mutableListOf(
+                            "clang",
+                            "-shared",
+                            "-O2",
+                            "-I${javaInclude.absolutePath}",
+                            "-I${javaOsInclude.absolutePath}",
+                            "-I${jniDir.absolutePath}",
+                            "-I${treesitterVendorDir.resolve("lib/include").absolutePath}",
+                            "-I${treesitterVendorDir.resolve("lib/src").absolutePath}",
+                            "-DTREE_SITTER_HIDE_SYMBOLS",
+                            "-D_DEFAULT_SOURCE",
+                            "-D_POSIX_C_SOURCE=200112L",
+                            cSource.absolutePath,
+                            extCSource.absolutePath,
+                        )
                     cmd.addAll(jniSources)
                     cmd.addAll(listOf("-o", outFile.absolutePath))
                     if (!isWindows) {
                         cmd.add(2, "-fPIC")
                     }
-                    execOps.exec {
-                        commandLine(cmd)
-                    }.assertNormalExitValue()
+                    execOps
+                        .exec {
+                            commandLine(cmd)
+                        }.assertNormalExitValue()
                 } catch (e: Exception) {
                     logger.warn("Could not compile ktreesitter JNI with host clang: ${e.message}")
                 }
@@ -1093,13 +1130,159 @@ val compileTreesitterJni =
 tasks.withType<Test>().configureEach {
     if (name == "jvmTest" || name == "testAndroidHostTest") {
         dependsOn(compileTreesitterJni)
-        val nativesPath = layout.buildDirectory.dir("natives").get().asFile.absolutePath
+        val nativesPath =
+            layout.buildDirectory
+                .dir("natives")
+                .get()
+                .asFile.absolutePath
         val existing = systemProperties["java.library.path"] as? String
         systemProperty(
             "java.library.path",
             if (existing != null) "$nativesPath:$existing" else nativesPath,
         )
     }
+}
+
+// ============================================================================
+// N-API — JS/WASM C bindings. Gated by project.ffi.napi=true.
+// ============================================================================
+if (napiFfiEnabled) {
+    val buildNodeFfi =
+        tasks.register<Exec>("buildNode$ffiName") {
+            group = "build"
+            description = "Builds the native node-$ffiNameLower N-API addon via node-gyp"
+            workingDir = file(ffiNapiDir)
+            val isWindows =
+                org.gradle.internal.os.OperatingSystem
+                    .current()
+                    .isWindows
+            if (isWindows) {
+                commandLine("cmd", "/c", "npm install --ignore-scripts && npx node-gyp configure && npx node-gyp build")
+            } else {
+                commandLine("sh", "-c", "npm install --ignore-scripts && npx node-gyp configure && npx node-gyp build")
+            }
+        }
+
+    val copyNodeFfi =
+        tasks.register<Copy>("copyNode$ffiName") {
+            dependsOn(buildNodeFfi)
+            from(ffiNapiDir)
+            into(layout.buildDirectory.dir("js/node_modules/$ffiNpmPackage"))
+        }
+    tasks.matching { it.name.startsWith("jsNodeTest") || it.name.startsWith("wasmJsNodeTest") }.configureEach {
+        dependsOn(copyNodeFfi)
+    }
+}
+
+val compileTreesitterWasm =
+    tasks.register("compileTreesitterWasm") {
+        group = "build"
+        description = "Compiles tree-sitter C engine into freestanding WebAssembly (wasm32) module"
+        val cSource = file("src/webMain/c/treesitter_wasm.c")
+        val libCSource = treesitterVendorDir.resolve("lib/src/lib.c")
+        val extCSource = file("src/nativeInterop/cinterop/treesitter_ext.c")
+        val outDir =
+            layout.buildDirectory
+                .dir("wasm")
+                .get()
+                .asFile
+        val outFile = File(outDir, "treesitter.wasm")
+        inputs.file(cSource)
+        inputs.file(libCSource)
+        inputs.file(extCSource)
+        outputs.file(outFile)
+
+        doLast {
+            outDir.mkdirs()
+            val konanDeps = File(System.getProperty("user.home"), ".konan/dependencies")
+            val llvmDir =
+                konanDeps
+                    .listFiles { _, name -> name.startsWith("llvm-") }
+                    ?.sortedByDescending { it.name }
+                    ?.firstOrNull()
+            if (llvmDir != null) {
+                val clangBin = File(llvmDir, "bin/clang")
+                val lldBin = File(llvmDir, "bin/lld")
+                if (clangBin.exists() && lldBin.exists()) {
+                    val execOps = project.serviceOf<ExecOperations>()
+                    val objWasm = File(outDir, "treesitter_wasm.o")
+                    val objLib = File(outDir, "lib_wasm.o")
+                    val objExt = File(outDir, "ext_wasm.o")
+                    execOps
+                        .exec {
+                            commandLine(
+                                clangBin.absolutePath,
+                                "--target=wasm32",
+                                "-nostdlib",
+                                "-O3",
+                                "-fno-builtin",
+                                "-I${file("src/webMain/c/include").absolutePath}",
+                                "-I${treesitterVendorDir.resolve("lib/include").absolutePath}",
+                                "-I${treesitterVendorDir.resolve("lib/src").absolutePath}",
+                                "-DTREE_SITTER_HIDE_SYMBOLS",
+                                "-c",
+                                cSource.absolutePath,
+                                "-o",
+                                objWasm.absolutePath,
+                            )
+                        }.assertNormalExitValue()
+                    execOps
+                        .exec {
+                            commandLine(
+                                clangBin.absolutePath,
+                                "--target=wasm32",
+                                "-nostdlib",
+                                "-O3",
+                                "-fno-builtin",
+                                "-I${file("src/webMain/c/include").absolutePath}",
+                                "-I${treesitterVendorDir.resolve("lib/include").absolutePath}",
+                                "-I${treesitterVendorDir.resolve("lib/src").absolutePath}",
+                                "-DTREE_SITTER_HIDE_SYMBOLS",
+                                "-c",
+                                libCSource.absolutePath,
+                                "-o",
+                                objLib.absolutePath,
+                            )
+                        }.assertNormalExitValue()
+                    execOps
+                        .exec {
+                            commandLine(
+                                clangBin.absolutePath,
+                                "--target=wasm32",
+                                "-nostdlib",
+                                "-O3",
+                                "-fno-builtin",
+                                "-I${file("src/webMain/c/include").absolutePath}",
+                                "-I${treesitterVendorDir.resolve("lib/include").absolutePath}",
+                                "-I${treesitterVendorDir.resolve("lib/src").absolutePath}",
+                                "-c",
+                                extCSource.absolutePath,
+                                "-o",
+                                objExt.absolutePath,
+                            )
+                        }.assertNormalExitValue()
+                    execOps
+                        .exec {
+                            commandLine(
+                                lldBin.absolutePath,
+                                "-flavor",
+                                "wasm",
+                                "--no-entry",
+                                "--export-all",
+                                "--allow-undefined",
+                                objWasm.absolutePath,
+                                objLib.absolutePath,
+                                objExt.absolutePath,
+                                "-o",
+                                outFile.absolutePath,
+                            )
+                        }.assertNormalExitValue()
+                }
+            }
+        }
+    }
+tasks.matching { it.name.contains("wasm", ignoreCase = true) && it.name.contains("Test", ignoreCase = true) }.configureEach {
+    dependsOn(compileTreesitterWasm)
 }
 
 // Patch generated SPM Package.swift to include minimum macOS platform for Swift Concurrency

@@ -29,265 +29,267 @@ import kotlin.test.assertTrue
 
 @OptIn(ExperimentalUnsignedTypes::class)
 class LanguageTest {
-    private data class SymbolSpec(
-        val name: String,
-        val visible: Boolean,
-        val named: Boolean,
-        val supertype: Boolean = false,
-    )
-
-    private fun createRustFixtureTsLanguage(abiVersion: UInt = LANGUAGE_VERSION): TSLanguage {
-        val literalSubtypes =
-            listOf(
-                "boolean_literal",
-                "char_literal",
-                "float_literal",
-                "integer_literal",
-                "raw_string_literal",
-                "string_literal",
-            )
-        val patternNamedSubtypes =
-            listOf(
-                "captured_pattern",
-                "const_block",
-                "generic_pattern",
-                "identifier",
-                "macro_invocation",
-                "mut_pattern",
-                "or_pattern",
-                "range_pattern",
-                "ref_pattern",
-                "reference_pattern",
-                "remaining_field_pattern",
-                "scoped_identifier",
-                "slice_pattern",
-                "struct_pattern",
-                "tuple_pattern",
-                "tuple_struct_pattern",
-            )
-        val typeNamedSubtypes =
-            listOf(
-                "abstract_type",
-                "array_type",
-                "bounded_type",
-                "dynamic_type",
-                "function_type",
-                "generic_type",
-                "metavariable",
-                "never_type",
-                "pointer_type",
-                "primitive_type",
-                "reference_type",
-                "removed_trait_bound",
-                "scoped_type_identifier",
-                "tuple_type",
-                "type_identifier",
-                "unit_type",
-            )
-
-        val specs = mutableListOf<SymbolSpec>()
-        // 0: end
-        specs += SymbolSpec("end", visible = false, named = false)
-        // Punctuation & comment tokens
-        specs += SymbolSpec("//", visible = true, named = false)
-        specs += SymbolSpec("/*", visible = true, named = false)
-        specs += SymbolSpec("struct", visible = true, named = false)
-        specs += SymbolSpec("=>", visible = true, named = false)
-        specs += SymbolSpec("[", visible = true, named = false)
-        specs += SymbolSpec("]", visible = true, named = false)
-        specs += SymbolSpec("(", visible = true, named = false)
-        specs += SymbolSpec(")", visible = true, named = false)
-        specs += SymbolSpec("{", visible = true, named = false)
-        specs += SymbolSpec("}", visible = true, named = false)
-        specs += SymbolSpec("_", visible = true, named = false)
-        // Named terminal tokens
-        specs += SymbolSpec("identifier", visible = true, named = true)
-        specs += SymbolSpec("line_comment", visible = true, named = true)
-        specs += SymbolSpec("block_comment", visible = true, named = true)
-        for (name in literalSubtypes) {
-            specs += SymbolSpec(name, visible = true, named = true)
-        }
-        for (name in patternNamedSubtypes) {
-            if (specs.none { it.name == name }) {
-                specs += SymbolSpec(name, visible = true, named = true)
-            }
-        }
-        for (name in typeNamedSubtypes) {
-            if (specs.none { it.name == name }) {
-                specs += SymbolSpec(name, visible = true, named = true)
-            }
-        }
-        // Hidden/auxiliary scanner tokens checked in test_symbol_metadata_checks
-        specs += SymbolSpec("_raw_string_literal_start", visible = false, named = false)
-        specs += SymbolSpec("_raw_string_literal_end", visible = false, named = false)
-        specs += SymbolSpec("_line_doc_comment", visible = false, named = false)
-        specs += SymbolSpec("_error_sentinel", visible = false, named = false)
-
-        val tokenCount = specs.size.toUInt()
-
-        // Non-terminal rules & supertypes
-        specs += SymbolSpec("source_file", visible = true, named = true)
-        specs += SymbolSpec("struct_item", visible = true, named = true)
-        specs += SymbolSpec("enum_item", visible = true, named = true)
-        specs += SymbolSpec("type_item", visible = true, named = true)
-        specs += SymbolSpec("_declaration_statement", visible = false, named = true, supertype = true)
-        specs += SymbolSpec("_expression", visible = false, named = true, supertype = true)
-        specs += SymbolSpec("_literal", visible = false, named = true, supertype = true)
-        specs += SymbolSpec("_literal_pattern", visible = false, named = true, supertype = true)
-        specs += SymbolSpec("_pattern", visible = false, named = true, supertype = true)
-        specs += SymbolSpec("_type", visible = false, named = true, supertype = true)
-
-        val symbolCount = specs.size.toUInt()
-        val idByName = specs.withIndex().associate { (idx, spec) -> spec.name to idx.toUShort() }
-
-        val supertypeNames =
-            listOf(
-                "_expression",
-                "_literal",
-                "_literal_pattern",
-                "_pattern",
-                "_type",
-            )
-        val supertypeSymbols = UShortArray(supertypeNames.size) { idByName.getValue(supertypeNames[it]) }
-
-        val subtypeEntries = mutableListOf<UShort>()
-        val supertypeMapSlices = MutableList(symbolCount.toInt()) { TSMapSlice(0u, 0u) }
-
-        fun registerSubtypes(supertypeName: String, childNames: List<String>) {
-            val supId = idByName.getValue(supertypeName).toInt()
-            val start = subtypeEntries.size.toUShort()
-            for (child in childNames) {
-                subtypeEntries += idByName.getValue(child)
-            }
-            supertypeMapSlices[supId] = TSMapSlice(start, childNames.size.toUShort())
-        }
-
-        registerSubtypes("_expression", listOf("identifier", "macro_invocation"))
-        registerSubtypes("_literal", literalSubtypes)
-        registerSubtypes("_literal_pattern", literalSubtypes)
-        registerSubtypes("_pattern", listOf("_", "_literal_pattern") + patternNamedSubtypes)
-        registerSubtypes("_type", (typeNamedSubtypes + "macro_invocation").sorted())
-
-        // Parse actions:
-        // 0: empty header
-        // 1..2: Shift to state 2 (after `struct` keyword)
-        // 3..4: Shift extra (for comments)
-        // 5..6: Shift to state 3 (after `identifier` in state 2)
-        val parseActions =
-            listOf(
-                TSParseActionEntry.Header(count = 0u, reusable = false),
-                TSParseActionEntry.Header(count = 1u, reusable = true),
-                TSParseActionEntry.Action(TSParseAction.Shift(state = 2u, extra = false, repetition = false)),
-                TSParseActionEntry.Header(count = 1u, reusable = true),
-                TSParseActionEntry.Action(TSParseAction.Shift(state = 0u, extra = true, repetition = false)),
-                TSParseActionEntry.Header(count = 1u, reusable = true),
-                TSParseActionEntry.Action(TSParseAction.Shift(state = 3u, extra = false, repetition = false)),
-            )
-
-        // States:
-        // State 0 (large): initial state
-        // State 1 (large): inside struct item before `struct` keyword -> shifting `struct` leads to state 2
-        // State 2 (large): after `struct` keyword -> valid lookahead symbols:
-        //   "//", "/*", "identifier", "line_comment", "block_comment"
-        // State 3 (small): small parse state with valid lookahead symbols `{` and `}`
-        val largeStateCount = 3u
-        val stateCount = 8u
-        val parseTable = UShortArray(largeStateCount.toInt() * symbolCount.toInt())
-
-        fun setLargeEntry(state: Int, symbolName: String, value: UShort) {
-            val sym = idByName.getValue(symbolName).toInt()
-            parseTable[state * symbolCount.toInt() + sym] = value
-        }
-
-        // In state 1, `struct` shifts to state 2 (action index 1)
-        setLargeEntry(1, "struct", 1u)
-        // In state 2, valid lookaheads are "//", "/*", "identifier", "line_comment", "block_comment"
-        setLargeEntry(2, "//", 3u)
-        setLargeEntry(2, "/*", 3u)
-        setLargeEntry(2, "identifier", 5u)
-        setLargeEntry(2, "line_comment", 3u)
-        setLargeEntry(2, "block_comment", 3u)
-
-        // Small state 3 has 1 group with action index 3 and 2 symbols: `{` and `}`
-        val smallParseTable =
-            ushortArrayOf(
-                1u, // groupCount = 1
-                3u, // sectionValue = action index 3
-                2u, // symbolCount = 2
-                idByName.getValue("{"),
-                idByName.getValue("}"),
-                1u,
-                3u,
-                1u,
-                idByName.getValue("end"),
-                1u,
-                3u,
-                1u,
-                idByName.getValue("end"),
-                1u,
-                3u,
-                1u,
-                idByName.getValue("}"),
-                1u,
-                3u,
-                2u,
-                idByName.getValue("end"),
-                idByName.getValue("struct"),
-            )
-        val smallParseTableMap = uintArrayOf(0u, 5u, 9u, 13u, 17u)
-
-        val fieldNames = listOf("", "body", "name", "type")
-
-        return TSLanguage(
-            abiVersion = abiVersion,
-            symbolCount = symbolCount,
-            aliasCount = 0u,
-            tokenCount = tokenCount,
-            externalTokenCount = 0u,
-            stateCount = stateCount,
-            largeStateCount = largeStateCount,
-            productionIdCount = 1u,
-            fieldCount = (fieldNames.size - 1).toUInt(),
-            maxAliasSequenceLength = 0u,
-            parseTable = parseTable,
-            smallParseTable = smallParseTable,
-            smallParseTableMap = smallParseTableMap,
-            parseActions = parseActions,
-            symbolNames = specs.map { it.name },
-            fieldNames = fieldNames,
-            fieldMapSlices = listOf(TSMapSlice(0u, 0u)),
-            fieldMapEntries = emptyList<TSFieldMapEntry>(),
-            symbolMetadata =
-                specs.map {
-                    TSSymbolMetadata(
-                        visible = it.visible,
-                        named = it.named,
-                        supertype = it.supertype,
-                    )
-                },
-            publicSymbolMap = UShortArray(symbolCount.toInt()) { it.toUShort() },
-            aliasMap = UShortArray(0),
-            aliasSequences = UShortArray(0),
-            lexModes = List(stateCount.toInt()) { TSLexerMode(0u, 0u, 0u) },
-            lexFn = { _, _ -> false },
-            keywordLexFn = { _, _ -> false },
-            keywordCaptureToken = 0u,
-            externalScanner = null,
-            primaryStateIds = UShortArray(stateCount.toInt()) { it.toUShort() },
-            name = "rust",
-            reservedWords = UShortArray(0),
-            maxReservedWordSetSize = 0u,
-            supertypeCount = supertypeSymbols.size.toUInt(),
-            supertypeSymbols = supertypeSymbols,
-            supertypeMapSlices = supertypeMapSlices,
-            supertypeMapEntries = subtypeEntries.toUShortArray(),
-            metadata = TSLanguageMetadata(0u, 23u, 2u),
+    companion object {
+        private data class SymbolSpec(
+            val name: String,
+            val visible: Boolean,
+            val named: Boolean,
+            val supertype: Boolean = false,
         )
-    }
 
-    private fun getLanguage(): Language {
-        val languageFn = registerLanguageFn(createRustFixtureTsLanguage())
-        return Language(languageFn)
+        internal fun createRustFixtureTsLanguage(abiVersion: UInt = LANGUAGE_VERSION): TSLanguage {
+            val literalSubtypes =
+                listOf(
+                    "boolean_literal",
+                    "char_literal",
+                    "float_literal",
+                    "integer_literal",
+                    "raw_string_literal",
+                    "string_literal",
+                )
+            val patternNamedSubtypes =
+                listOf(
+                    "captured_pattern",
+                    "const_block",
+                    "generic_pattern",
+                    "identifier",
+                    "macro_invocation",
+                    "mut_pattern",
+                    "or_pattern",
+                    "range_pattern",
+                    "ref_pattern",
+                    "reference_pattern",
+                    "remaining_field_pattern",
+                    "scoped_identifier",
+                    "slice_pattern",
+                    "struct_pattern",
+                    "tuple_pattern",
+                    "tuple_struct_pattern",
+                )
+            val typeNamedSubtypes =
+                listOf(
+                    "abstract_type",
+                    "array_type",
+                    "bounded_type",
+                    "dynamic_type",
+                    "function_type",
+                    "generic_type",
+                    "metavariable",
+                    "never_type",
+                    "pointer_type",
+                    "primitive_type",
+                    "reference_type",
+                    "removed_trait_bound",
+                    "scoped_type_identifier",
+                    "tuple_type",
+                    "type_identifier",
+                    "unit_type",
+                )
+
+            val specs = mutableListOf<SymbolSpec>()
+            // 0: end
+            specs += SymbolSpec("end", visible = false, named = false)
+            // Punctuation & comment tokens
+            specs += SymbolSpec("//", visible = true, named = false)
+            specs += SymbolSpec("/*", visible = true, named = false)
+            specs += SymbolSpec("struct", visible = true, named = false)
+            specs += SymbolSpec("=>", visible = true, named = false)
+            specs += SymbolSpec("[", visible = true, named = false)
+            specs += SymbolSpec("]", visible = true, named = false)
+            specs += SymbolSpec("(", visible = true, named = false)
+            specs += SymbolSpec(")", visible = true, named = false)
+            specs += SymbolSpec("{", visible = true, named = false)
+            specs += SymbolSpec("}", visible = true, named = false)
+            specs += SymbolSpec("_", visible = true, named = false)
+            // Named terminal tokens
+            specs += SymbolSpec("identifier", visible = true, named = true)
+            specs += SymbolSpec("line_comment", visible = true, named = true)
+            specs += SymbolSpec("block_comment", visible = true, named = true)
+            for (name in literalSubtypes) {
+                specs += SymbolSpec(name, visible = true, named = true)
+            }
+            for (name in patternNamedSubtypes) {
+                if (specs.none { it.name == name }) {
+                    specs += SymbolSpec(name, visible = true, named = true)
+                }
+            }
+            for (name in typeNamedSubtypes) {
+                if (specs.none { it.name == name }) {
+                    specs += SymbolSpec(name, visible = true, named = true)
+                }
+            }
+            // Hidden/auxiliary scanner tokens checked in test_symbol_metadata_checks
+            specs += SymbolSpec("_raw_string_literal_start", visible = false, named = false)
+            specs += SymbolSpec("_raw_string_literal_end", visible = false, named = false)
+            specs += SymbolSpec("_line_doc_comment", visible = false, named = false)
+            specs += SymbolSpec("_error_sentinel", visible = false, named = false)
+
+            val tokenCount = specs.size.toUInt()
+
+            // Non-terminal rules & supertypes
+            specs += SymbolSpec("source_file", visible = true, named = true)
+            specs += SymbolSpec("struct_item", visible = true, named = true)
+            specs += SymbolSpec("enum_item", visible = true, named = true)
+            specs += SymbolSpec("type_item", visible = true, named = true)
+            specs += SymbolSpec("_declaration_statement", visible = false, named = true, supertype = true)
+            specs += SymbolSpec("_expression", visible = false, named = true, supertype = true)
+            specs += SymbolSpec("_literal", visible = false, named = true, supertype = true)
+            specs += SymbolSpec("_literal_pattern", visible = false, named = true, supertype = true)
+            specs += SymbolSpec("_pattern", visible = false, named = true, supertype = true)
+            specs += SymbolSpec("_type", visible = false, named = true, supertype = true)
+
+            val symbolCount = specs.size.toUInt()
+            val idByName = specs.withIndex().associate { (idx, spec) -> spec.name to idx.toUShort() }
+
+            val supertypeNames =
+                listOf(
+                    "_expression",
+                    "_literal",
+                    "_literal_pattern",
+                    "_pattern",
+                    "_type",
+                )
+            val supertypeSymbols = UShortArray(supertypeNames.size) { idByName.getValue(supertypeNames[it]) }
+
+            val subtypeEntries = mutableListOf<UShort>()
+            val supertypeMapSlices = MutableList(symbolCount.toInt()) { TSMapSlice(0u, 0u) }
+
+            fun registerSubtypes(supertypeName: String, childNames: List<String>) {
+                val supId = idByName.getValue(supertypeName).toInt()
+                val start = subtypeEntries.size.toUShort()
+                for (child in childNames) {
+                    subtypeEntries += idByName.getValue(child)
+                }
+                supertypeMapSlices[supId] = TSMapSlice(start, childNames.size.toUShort())
+            }
+
+            registerSubtypes("_expression", listOf("identifier", "macro_invocation"))
+            registerSubtypes("_literal", literalSubtypes)
+            registerSubtypes("_literal_pattern", literalSubtypes)
+            registerSubtypes("_pattern", listOf("_", "_literal_pattern") + patternNamedSubtypes)
+            registerSubtypes("_type", (typeNamedSubtypes + "macro_invocation").sorted())
+
+            // Parse actions:
+            // 0: empty header
+            // 1..2: Shift to state 2 (after `struct` keyword)
+            // 3..4: Shift extra (for comments)
+            // 5..6: Shift to state 3 (after `identifier` in state 2)
+            val parseActions =
+                listOf(
+                    TSParseActionEntry.Header(count = 0u, reusable = false),
+                    TSParseActionEntry.Header(count = 1u, reusable = true),
+                    TSParseActionEntry.Action(TSParseAction.Shift(state = 2u, extra = false, repetition = false)),
+                    TSParseActionEntry.Header(count = 1u, reusable = true),
+                    TSParseActionEntry.Action(TSParseAction.Shift(state = 0u, extra = true, repetition = false)),
+                    TSParseActionEntry.Header(count = 1u, reusable = true),
+                    TSParseActionEntry.Action(TSParseAction.Shift(state = 3u, extra = false, repetition = false)),
+                )
+
+            // States:
+            // State 0 (large): initial state
+            // State 1 (large): inside struct item before `struct` keyword -> shifting `struct` leads to state 2
+            // State 2 (large): after `struct` keyword -> valid lookahead symbols:
+            //   "//", "/*", "identifier", "line_comment", "block_comment"
+            // State 3 (small): small parse state with valid lookahead symbols `{` and `}`
+            val largeStateCount = 3u
+            val stateCount = 8u
+            val parseTable = UShortArray(largeStateCount.toInt() * symbolCount.toInt())
+
+            fun setLargeEntry(state: Int, symbolName: String, value: UShort) {
+                val sym = idByName.getValue(symbolName).toInt()
+                parseTable[state * symbolCount.toInt() + sym] = value
+            }
+
+            // In state 1, `struct` shifts to state 2 (action index 1)
+            setLargeEntry(1, "struct", 1u)
+            // In state 2, valid lookaheads are "//", "/*", "identifier", "line_comment", "block_comment"
+            setLargeEntry(2, "//", 3u)
+            setLargeEntry(2, "/*", 3u)
+            setLargeEntry(2, "identifier", 5u)
+            setLargeEntry(2, "line_comment", 3u)
+            setLargeEntry(2, "block_comment", 3u)
+
+            // Small state 3 has 1 group with action index 3 and 2 symbols: `{` and `}`
+            val smallParseTable =
+                ushortArrayOf(
+                    1u, // groupCount = 1
+                    3u, // sectionValue = action index 3
+                    2u, // symbolCount = 2
+                    idByName.getValue("{"),
+                    idByName.getValue("}"),
+                    1u,
+                    3u,
+                    1u,
+                    idByName.getValue("end"),
+                    1u,
+                    3u,
+                    1u,
+                    idByName.getValue("end"),
+                    1u,
+                    3u,
+                    1u,
+                    idByName.getValue("}"),
+                    1u,
+                    3u,
+                    2u,
+                    idByName.getValue("end"),
+                    idByName.getValue("struct"),
+                )
+            val smallParseTableMap = uintArrayOf(0u, 5u, 9u, 13u, 17u)
+
+            val fieldNames = listOf("", "body", "name", "type")
+
+            return TSLanguage(
+                abiVersion = abiVersion,
+                symbolCount = symbolCount,
+                aliasCount = 0u,
+                tokenCount = tokenCount,
+                externalTokenCount = 0u,
+                stateCount = stateCount,
+                largeStateCount = largeStateCount,
+                productionIdCount = 1u,
+                fieldCount = (fieldNames.size - 1).toUInt(),
+                maxAliasSequenceLength = 0u,
+                parseTable = parseTable,
+                smallParseTable = smallParseTable,
+                smallParseTableMap = smallParseTableMap,
+                parseActions = parseActions,
+                symbolNames = specs.map { it.name },
+                fieldNames = fieldNames,
+                fieldMapSlices = listOf(TSMapSlice(0u, 0u)),
+                fieldMapEntries = emptyList<TSFieldMapEntry>(),
+                symbolMetadata =
+                    specs.map {
+                        TSSymbolMetadata(
+                            visible = it.visible,
+                            named = it.named,
+                            supertype = it.supertype,
+                        )
+                    },
+                publicSymbolMap = UShortArray(symbolCount.toInt()) { it.toUShort() },
+                aliasMap = UShortArray(0),
+                aliasSequences = UShortArray(0),
+                lexModes = List(stateCount.toInt()) { TSLexerMode(0u, 0u, 0u) },
+                lexFn = { _, _ -> false },
+                keywordLexFn = { _, _ -> false },
+                keywordCaptureToken = 0u,
+                externalScanner = null,
+                primaryStateIds = UShortArray(stateCount.toInt()) { it.toUShort() },
+                name = "rust",
+                reservedWords = UShortArray(0),
+                maxReservedWordSetSize = 0u,
+                supertypeCount = supertypeSymbols.size.toUInt(),
+                supertypeSymbols = supertypeSymbols,
+                supertypeMapSlices = supertypeMapSlices,
+                supertypeMapEntries = subtypeEntries.toUShortArray(),
+                metadata = TSLanguageMetadata(0u, 23u, 2u),
+            )
+        }
+
+        internal fun getLanguage(): Language {
+            val languageFn = registerLanguageFn(createRustFixtureTsLanguage())
+            return Language(languageFn)
+        }
     }
 
     @Test

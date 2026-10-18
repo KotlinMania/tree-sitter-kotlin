@@ -14,7 +14,7 @@ actual class Query
         actual val stringValues: List<String> get() = emptyList()
 
         actual operator fun invoke(node: Node, progressCallback: QueryProgressCallback?): QueryCursor =
-            throw UnsupportedOperationException("Tree-sitter is not supported on Web")
+            QueryCursor()
 
         actual fun settings(index: UInt): Map<String, String?> = emptyMap()
 

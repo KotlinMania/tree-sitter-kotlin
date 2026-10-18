@@ -73,3 +73,7 @@ DerivedData/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 deep_symbol_inventory.txt
+
+# npm install output for node-treesitter
+native/node-treesitter/build/
+native/node-treesitter/node_modules/

@@ -1,7 +1,6 @@
 // port-lint: source include/tree_sitter/api.h
 package io.github.kotlinmania.treesitter.lib
 
-
 internal enum class TSInputEncoding {
     UTF8,
     UTF16LE,

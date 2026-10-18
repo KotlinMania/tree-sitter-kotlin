@@ -115,7 +115,6 @@ internal sealed class Subtree {
     }
 }
 
-
 internal class SubtreePool internal constructor(
     @Suppress("MemberVisibilityCanBePrivate")
     val freeTrees: MutableList<Subtree> = mutableListOf(),
