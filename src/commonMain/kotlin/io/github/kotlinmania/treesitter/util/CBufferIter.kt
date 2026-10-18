@@ -1,7 +1,7 @@
 // port-lint: source util.rs
 @file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
 
-package io.github.kotlinmania.treesitter
+package io.github.kotlinmania.treesitter.util
 
 import kotlin.native.HiddenFromObjC
 
@@ -37,9 +37,9 @@ class CBufferIter<T> internal constructor(
         }
     }
 
-    internal fun drop() = close()
+    fun drop() = close()
 
-    internal companion object {
+    companion object {
         fun <T> new(items: List<T>, release: (() -> Unit)? = null): CBufferIter<T> =
             CBufferIter(items, release)
     }

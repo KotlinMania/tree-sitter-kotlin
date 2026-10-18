@@ -1,9 +1,13 @@
 // port-lint: source wasm_language.rs
 @file:OptIn(kotlin.experimental.ExperimentalObjCRefinement::class)
 
-package io.github.kotlinmania.treesitter
+package io.github.kotlinmania.treesitter.wasmlanguage
 
+import io.github.kotlinmania.treesitter.Language
+import io.github.kotlinmania.treesitter.Parser
 import kotlin.native.HiddenFromObjC
+
+internal fun useWasmtime(): WasmEngine = WasmEngine.new()
 
 /**
  * An engine handle for WebAssembly language evaluation.
@@ -16,6 +20,11 @@ class WasmEngine internal constructor(
         fun new(): WasmEngine = WasmEngine()
     }
 }
+
+@HiddenFromObjC
+class WasmEngineT internal constructor(
+    internal val engine: WasmEngine = WasmEngine(),
+)
 
 /**
  * A store for loading and managing WebAssembly languages.
@@ -47,7 +56,9 @@ class WasmStore internal constructor(
     fun drop() = close()
 
     companion object {
-        fun new(engine: WasmEngine): WasmStore = WasmStore()
+        fun new(engine: WasmEngine): WasmStore = WasmStore(engine.pointer)
+
+        fun new(engine: WasmEngineT): WasmStore = WasmStore(engine.engine.pointer)
     }
 }
 
@@ -59,6 +70,8 @@ data class WasmError(
     val kind: WasmErrorKind,
     override val message: String,
 ) : Exception(message) {
+    fun fmt(): String = toString()
+
     override fun toString(): String {
         val kindText =
             when (kind) {

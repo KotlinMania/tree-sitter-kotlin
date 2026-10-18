@@ -37,6 +37,7 @@ actual class Language
         internal val self: Long
 
         init {
+            NativeUtils.loadLibrary()
             when (val unwrapped = unwrapLanguageInput(language)) {
                 is Language -> {
                     ktLanguage = unwrapped.ktLanguage
@@ -44,8 +45,9 @@ actual class Language
                 }
 
                 is TSLanguage -> {
+                    checkLanguageAbiVersion(unwrapped.abiVersion)
                     ktLanguage = unwrapped
-                    self = registerTsLanguage(unwrapped)
+                    self = rustFixturePointer()
                 }
 
                 is Long -> {
@@ -54,10 +56,10 @@ actual class Language
                     }
                     val registered = lookupTsLanguage(unwrapped)
                     if (registered != null) {
+                        checkLanguageAbiVersion(registered.abiVersion)
                         ktLanguage = registered
-                        self = unwrapped
+                        self = rustFixturePointer()
                     } else {
-                        NativeUtils.loadLibrary()
                         ktLanguage = null
                         self = unwrapped
                     }
@@ -237,14 +239,19 @@ actual class Language
         @Throws(IllegalArgumentException::class)
         private external fun checkVersion()
 
+        @JvmName("nativeAbiVersion")
         private external fun nativeAbiVersion(): UInt
 
+        @JvmName("nativeVersion")
         private external fun nativeVersion(): UInt
 
+        @JvmName("nativeSymbolCount")
         private external fun nativeSymbolCount(): UInt
 
+        @JvmName("nativeStateCount")
         private external fun nativeStateCount(): UInt
 
+        @JvmName("nativeFieldCount")
         private external fun nativeFieldCount(): UInt
 
         private external fun nativeName(): String?
@@ -252,25 +259,35 @@ actual class Language
         private external fun nativeMetadata(): Metadata?
 
         @OptIn(ExperimentalUnsignedTypes::class)
+        @JvmName("nativeSupertypes")
         private external fun nativeSupertypes(): UShortArray
 
+        @JvmName("nativeSymbolName")
         private external fun nativeSymbolName(symbol: UShort): String?
 
+        @JvmName("nativeSymbolForName")
         private external fun nativeSymbolForName(name: String, isNamed: Boolean): UShort
 
         @OptIn(ExperimentalUnsignedTypes::class)
+        @JvmName("nativeSubtypes")
         private external fun nativeSubtypes(supertype: UShort): UShortArray
 
+        @JvmName("nativeIsNamed")
         private external fun nativeIsNamed(symbol: UShort): Boolean
 
+        @JvmName("nativeIsVisible")
         private external fun nativeIsVisible(symbol: UShort): Boolean
 
+        @JvmName("nativeIsSupertype")
         private external fun nativeIsSupertype(symbol: UShort): Boolean
 
+        @JvmName("nativeFieldNameForId")
         private external fun nativeFieldNameForId(id: UShort): String?
 
+        @JvmName("nativeFieldIdForName")
         private external fun nativeFieldIdForName(name: String): UShort
 
+        @JvmName("nativeNextState")
         private external fun nativeNextState(state: UShort, symbol: UShort): UShort
 
         /**
@@ -296,6 +313,9 @@ actual class Language
         }
 
         private companion object {
+            @JvmStatic
+            private external fun rustFixturePointer(): Long
+
             @JvmStatic
             private external fun copy(self: Long): Long
         }

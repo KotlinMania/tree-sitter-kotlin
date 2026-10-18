@@ -3,9 +3,9 @@
 
 package io.github.kotlinmania.treesitter.lib
 
-internal const val TS_BUILTIN_SYM_END: TSSymbol = 0u
-internal val TS_BUILTIN_SYM_ERROR: TSSymbol = UShort.MAX_VALUE
-internal val TS_BUILTIN_SYM_ERROR_REPEAT: TSSymbol = (UShort.MAX_VALUE.toInt() - 1).toUShort()
+internal const val TS_BUILTIN_SYM_END: UShort = 0u
+internal val TS_BUILTIN_SYM_ERROR: UShort = UShort.MAX_VALUE
+internal val TS_BUILTIN_SYM_ERROR_REPEAT: UShort = (UShort.MAX_VALUE.toInt() - 1).toUShort()
 
 internal const val TREE_SITTER_SERIALIZATION_BUFFER_SIZE: Int = 1024
 
@@ -19,7 +19,7 @@ internal data class TSLanguageMetadata(
 )
 
 internal data class TSFieldMapEntry(
-    val fieldId: TSFieldId,
+    val fieldId: UShort,
     val childIndex: UByte,
     val inherited: Boolean,
 )
@@ -89,7 +89,7 @@ internal fun interface TSLexerLogFn {
  */
 internal class TSLexer(
     var lookahead: Int,
-    var resultSymbol: TSSymbol,
+    var resultSymbol: UShort,
     val advance: TSLexerAdvanceFn,
     val markEnd: TSLexerMarkEndFn,
     val getColumn: TSLexerGetColumnFn,
@@ -108,7 +108,7 @@ internal sealed class TSParseAction {
     abstract val type: TSParseActionType
 
     class Shift(
-        val state: TSStateId,
+        val state: UShort,
         val extra: Boolean = false,
         val repetition: Boolean = false,
     ) : TSParseAction() {
@@ -116,7 +116,7 @@ internal sealed class TSParseAction {
     }
 
     class Reduce(
-        val symbol: TSSymbol,
+        val symbol: UShort,
         val childCount: UByte,
         val dynamicPrecedence: Short,
         val productionId: UShort,
@@ -200,7 +200,7 @@ internal class TSLanguageExternalScanner(
 
 /** Run the generated lex function for a parse state, returning whether a token was accepted. */
 internal fun interface TSLexFn {
-    operator fun invoke(lexer: TSLexer, state: TSStateId): Boolean
+    operator fun invoke(lexer: TSLexer, state: UShort): Boolean
 }
 
 internal class TSLanguage internal constructor(
@@ -229,7 +229,7 @@ internal class TSLanguage internal constructor(
     val lexModes: List<TSLexerMode>,
     val lexFn: TSLexFn,
     val keywordLexFn: TSLexFn,
-    val keywordCaptureToken: TSSymbol,
+    val keywordCaptureToken: UShort,
     val externalScanner: TSLanguageExternalScanner?,
     val primaryStateIds: UShortArray,
     val name: String,

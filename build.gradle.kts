@@ -1027,6 +1027,80 @@ tasks.register("hostTests") {
     )
 }
 
+val compileTreesitterJni =
+    tasks.register("compileTreesitterJni") {
+        group = "build"
+        description = "Compiles JNI sources and tree-sitter C engine into a shared library for JVM JNI binding"
+        val jniDir = file("src/jni")
+        val cSource = treesitterVendorDir.resolve("lib/src/lib.c")
+        val extCSource = file("src/nativeInterop/cinterop/treesitter_ext.c")
+        val outDir = layout.buildDirectory.dir("natives").get().asFile
+        inputs.dir(jniDir)
+        inputs.file(cSource)
+        inputs.file(extCSource)
+        outputs.dir(outDir)
+
+        doLast {
+            outDir.mkdirs()
+            val javaHome = System.getProperty("java.home") ?: System.getenv("JAVA_HOME") ?: ""
+            val isWindows = org.gradle.internal.os.OperatingSystem.current().isWindows
+            val isMac = org.gradle.internal.os.OperatingSystem.current().isMacOsX
+
+            val (libName, osInclude) =
+                when {
+                    isWindows -> "ktreesitter.dll" to "win32"
+                    isMac -> "libktreesitter.dylib" to "darwin"
+                    else -> "libktreesitter.so" to "linux"
+                }
+            val outFile = File(outDir, libName)
+            val javaInclude = File(javaHome, "include")
+            val javaOsInclude = File(javaInclude, osInclude)
+
+            if (javaInclude.exists()) {
+                val execOps = project.serviceOf<ExecOperations>()
+                try {
+                    val jniSources = jniDir.listFiles { _, name -> name.endsWith(".c") }?.map { it.absolutePath } ?: emptyList()
+                    val cmd = mutableListOf(
+                        "clang",
+                        "-shared",
+                        "-O2",
+                        "-I${javaInclude.absolutePath}",
+                        "-I${javaOsInclude.absolutePath}",
+                        "-I${jniDir.absolutePath}",
+                        "-I${treesitterVendorDir.resolve("lib/include").absolutePath}",
+                        "-I${treesitterVendorDir.resolve("lib/src").absolutePath}",
+                        "-DTREE_SITTER_HIDE_SYMBOLS",
+                        "-D_DEFAULT_SOURCE",
+                        "-D_POSIX_C_SOURCE=200112L",
+                        cSource.absolutePath,
+                        extCSource.absolutePath,
+                    )
+                    cmd.addAll(jniSources)
+                    cmd.addAll(listOf("-o", outFile.absolutePath))
+                    if (!isWindows) {
+                        cmd.add(2, "-fPIC")
+                    }
+                    execOps.exec {
+                        commandLine(cmd)
+                    }.assertNormalExitValue()
+                } catch (e: Exception) {
+                    logger.warn("Could not compile ktreesitter JNI with host clang: ${e.message}")
+                }
+            }
+        }
+    }
+
+tasks.named<Test>("jvmTest") {
+    dependsOn(compileTreesitterJni)
+    systemProperty(
+        "java.library.path",
+        layout.buildDirectory
+            .dir("natives")
+            .get()
+            .asFile.absolutePath,
+    )
+}
+
 // Patch generated SPM Package.swift to include minimum macOS platform for Swift Concurrency
 tasks.matching { it.name.contains("GenerateSPMPackage") }.configureEach {
     doLast {
@@ -1219,6 +1293,8 @@ tasks.withType<CInteropProcess>().configureEach {
                 "${konanTarget.family.staticPrefix}tree-sitter.${konanTarget.family.staticSuffix}",
             ).asFile
     val objectFile = treesitterVendorDir.resolve("lib.o")
+    val extCFile = layout.projectDirectory.file("src/nativeInterop/cinterop/treesitter_ext.c").asFile
+    val extObjectFile = treesitterVendorDir.resolve("treesitter_ext.o")
 
     doFirst {
         val runKonan =
@@ -1253,14 +1329,40 @@ tasks.withType<CInteropProcess>().configureEach {
             args("clang", "clang", konanTarget.name, "@" + argsFile.path)
         }
 
+        val extArgsFile = File.createTempFile("ext_args", null)
+        extArgsFile.deleteOnExit()
+        extArgsFile.writer().useToRun {
+            write("-I" + treesitterVendorDir.resolve("lib/src").unixPath + "\n")
+            write("-I" + treesitterVendorDir.resolve("lib/include").unixPath + "\n")
+            write("-DTREE_SITTER_HIDE_SYMBOLS\n")
+            write("-D_DEFAULT_SOURCE\n")
+            write("-D_POSIX_C_SOURCE=200112L\n")
+            write("-fvisibility=hidden\n")
+            write("-std=c11\n")
+            write("-O2\n")
+            write("-g\n")
+            write("-c\n")
+            write("-o\n")
+            write(extObjectFile.unixPath + "\n")
+            write(extCFile.unixPath + "\n")
+        }
+
         treesitterExecService.execOps.exec {
             executable = runKonan
             workingDir = treesitterVendorDir
             standardOutput = nullOutputStream()
-            args("llvm", "llvm-ar", "rcs", libFile.path, objectFile.path)
+            args("clang", "clang", konanTarget.name, "@" + extArgsFile.path)
+        }
+
+        treesitterExecService.execOps.exec {
+            executable = runKonan
+            workingDir = treesitterVendorDir
+            standardOutput = nullOutputStream()
+            args("llvm", "llvm-ar", "rcs", libFile.path, objectFile.path, extObjectFile.path)
         }
     }
 
     inputs.file(treesitterVendorDir.resolve("lib/src/lib.c"))
+    inputs.file(extCFile)
     outputs.file(libFile)
 }

@@ -4,14 +4,14 @@ Based on AST analysis, here are the concrete next steps.
 
 ## Summary
 
-- **Files Present:** 2/6 (33.3%)
-- **Function parity:** 12/36 matched (target 17) — 33.3%
-- **Class/type parity:** 4/42 matched (target 5) — 9.5%
-- **Combined symbol parity:** 16/78 matched (target 22) — 20.5%
-- **Average inline-code cosine:** 0.03 (function body across 2 matched files)
-- **Average documentation cosine:** 0.00 (doc text across 2 matched files)
+- **Files Present:** 3/6 (50.0%)
+- **Function parity:** 34/36 matched (target 40) — 94.4%
+- **Class/type parity:** 5/42 matched (target 26) — 11.9%
+- **Combined symbol parity:** 39/78 matched (target 66) — 50.0%
+- **Average inline-code cosine:** 0.08 (function body across 3 matched files)
+- **Average documentation cosine:** 0.00 (doc text across 3 matched files)
 - **Cheat-zeroed Files:** 0
-- **Critical Issues:** 2 files with <0.60 function similarity
+- **Critical Issues:** 3 files with <0.60 function similarity
 - **Needs Review:** 0 files with 0.60-0.84 function similarity
 - **Excellent:** 0 files with >=0.85 function similarity
 
@@ -29,21 +29,9 @@ No missing high-value files detected.
 
 Every matched file is listed below with function and type symbol parity.
 
-### 1. wasm_language
+### 1. util
 
-- **Target:** `treesitter.WasmLanguage`
-- **Similarity:** 0.02
-- **Dependents:** 0
-- **Priority Score:** 31409.8
-- **Functions:** 8/10 matched (target 11)
-- **Missing functions:** `_use_wasmtime`, `fmt`
-- **Types:** 3/4 matched
-- **Missing types:** `wasm_engine_t`
-- **Lint issues:** 2
-
-### 2. util
-
-- **Target:** `treesitter.CBufferIter`
+- **Target:** `util.CBufferIter`
 - **Similarity:** 0.05
 - **Dependents:** 0
 - **Priority Score:** 10609.5
@@ -51,6 +39,29 @@ Every matched file is listed below with function and type symbol parity.
 - **Missing functions:** _none_
 - **Types:** 1/2 matched (target 1)
 - **Missing types:** `Item`
+
+### 2. ffi
+
+- **Target:** `ffi.Ffi`
+- **Similarity:** 0.16
+- **Dependents:** 0
+- **Priority Score:** 2008.4
+- **Functions:** 20/20 matched
+- **Missing functions:** _none_
+- **Types:** 0/0 matched (target 20)
+- **Missing types:** _none_
+
+### 3. wasm_language
+
+- **Target:** `wasmlanguage.WasmLanguage`
+- **Similarity:** 0.03
+- **Dependents:** 0
+- **Priority Score:** 1409.7
+- **Functions:** 10/10 matched (target 14)
+- **Missing functions:** _none_
+- **Types:** 4/4 matched (target 5)
+- **Missing types:** _none_
+- **Lint issues:** 2
 
 ## Success Criteria
 

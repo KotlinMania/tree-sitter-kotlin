@@ -51,7 +51,19 @@ static void log_function(void *payload, TSLogType log_type, const char *buffer) 
             UNREACHABLE();
     }
     jstring message = (*env)->NewStringUTF(env, buffer);
-    CALL_METHOD(Object, (jobject)payload, Function2_invoke, log_type_value, message);
+    jobject callback = (jobject)payload;
+    if (callback) {
+        jclass cls = (*env)->GetObjectClass(env, callback);
+        jmethodID mid = (*env)->GetMethodID(env, cls, "invoke", "(L" PACKAGE "Parser$LogType;Ljava/lang/String;)V");
+        if (!mid) {
+            (*env)->ExceptionClear(env);
+            mid = (*env)->GetMethodID(env, cls, "invoke", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+        }
+        if (mid) {
+            (*env)->CallVoidMethod(env, callback, mid, log_type_value, message);
+        }
+    }
+    (*env)->DeleteLocalRef(env, message);
 }
 
 static const char *parse_read_callback(void *payload, uint32_t byte_index, TSPoint position,
@@ -65,11 +77,19 @@ static const char *parse_read_callback(void *payload, uint32_t byte_index, TSPoi
     }
 
     jobject point = marshal_point(env, position);
-    jobject byte = (*env)->AllocObject(env, global_class_cache.UInt);
-    (*env)->SetIntField(env, byte, global_field_cache.UInt_data, (jint)byte_index);
-    jobject char_sequence =
-        CALL_METHOD(Object, read_payload->callback, Function2_invoke, byte, point);
-    (*env)->DeleteLocalRef(env, byte);
+    jobject callback = read_payload->callback;
+    jobject char_sequence = NULL;
+    if (callback) {
+        jclass cls = (*env)->GetObjectClass(env, callback);
+        jmethodID mid = (*env)->GetMethodID(env, cls, "invoke-qim9Vi0", "(IL" PACKAGE "Point;)Ljava/lang/CharSequence;");
+        if (!mid) {
+            (*env)->ExceptionClear(env);
+            mid = (*env)->GetMethodID(env, cls, "invoke", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+        }
+        if (mid) {
+            char_sequence = (*env)->CallObjectMethod(env, callback, mid, (jint)byte_index, point);
+        }
+    }
     (*env)->DeleteLocalRef(env, point);
     if ((*env)->ExceptionCheck(env))
         return NULL;
@@ -91,15 +111,19 @@ static const char *parse_read_callback(void *payload, uint32_t byte_index, TSPoi
 static bool parse_progress_callback(TSParseState *state) {
     ProgressPayload *progress_payload = (ProgressPayload *)state->payload;
     JNIEnv *env = progress_payload->env;
-    jobject offset = (*env)->AllocObject(env, global_class_cache.UInt);
-    (*env)->SetIntField(env, offset, global_field_cache.UInt_data,
-                        (jint)state->current_byte_offset);
-    jobject error = NEW_OBJECT(Boolean, (jboolean)state->has_error);
-    jobject result =
-        CALL_METHOD(Object, progress_payload->callback, Function2_invoke, offset, error);
-    (*env)->DeleteLocalRef(env, offset);
-    (*env)->DeleteLocalRef(env, error);
-    return (bool)(*env)->GetBooleanField(env, result, global_field_cache.Boolean_value);
+    jobject callback = progress_payload->callback;
+    if (!callback) return true;
+    jclass cls = (*env)->GetObjectClass(env, callback);
+    jmethodID mid = (*env)->GetMethodID(env, cls, "invoke-qim9Vi0", "(IZ)Z");
+    if (!mid) {
+        (*env)->ExceptionClear(env);
+        mid = (*env)->GetMethodID(env, cls, "invoke", "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;");
+    }
+    if (!mid) {
+        (*env)->ExceptionClear(env);
+        return true;
+    }
+    return (bool)(*env)->CallBooleanMethod(env, callback, mid, (jint)state->current_byte_offset, (jboolean)state->has_error);
 }
 
 jlong JNICALL parser_init CRITICAL_NO_ARGS() { return (jlong)ts_parser_new(); }
@@ -252,12 +276,12 @@ const JNINativeMethod Parser_methods[] = {
     {"setIncludedRanges", "(Ljava/util/List;)V", (void *)&parser_set_included_ranges},
     {"getTimeoutMicros", "()J", (void *)&parser_get_timeout_micros},
     {"setTimeoutMicros", "(J)V", (void *)&parser_set_timeout_micros},
-    {"setLogger", "(Lkotlin/jvm/functions/Function2;)V", (void *)&parser_set_logger},
+    {"setLogger", "(L" PACKAGE "LogFunction;)V", (void *)&parser_set_logger},
     {"parse", "(Ljava/lang/String;L" PACKAGE "InputEncoding;L" PACKAGE "Tree;)L" PACKAGE "Tree;",
      (void *)&parser_parse__string},
     {"parse",
-     "(L" PACKAGE "InputEncoding;L" PACKAGE "Tree;Lkotlin/jvm/functions/Function2;"
-     "Lkotlin/jvm/functions/Function2;)L" PACKAGE "Tree;",
+     "(L" PACKAGE "InputEncoding;L" PACKAGE "Tree;L" PACKAGE "ParseProgressCallback;"
+     "L" PACKAGE "ParseReadCallback;)L" PACKAGE "Tree;",
      (void *)&parser_parse__function},
     {"reset", "()V", (void *)&parser_reset},
 };

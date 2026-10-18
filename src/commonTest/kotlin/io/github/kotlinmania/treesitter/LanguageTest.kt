@@ -9,6 +9,12 @@ import io.github.kotlinmania.treesitter.lib.TSMapSlice
 import io.github.kotlinmania.treesitter.lib.TSParseAction
 import io.github.kotlinmania.treesitter.lib.TSParseActionEntry
 import io.github.kotlinmania.treesitter.lib.TSSymbolMetadata
+import io.github.kotlinmania.treesitter.util.CBufferIter
+import io.github.kotlinmania.treesitter.wasmlanguage.WasmEngine
+import io.github.kotlinmania.treesitter.wasmlanguage.WasmError
+import io.github.kotlinmania.treesitter.wasmlanguage.WasmErrorKind
+import io.github.kotlinmania.treesitter.wasmlanguage.WasmStore
+import io.github.kotlinmania.treesitter.wasmlanguage.isWasm
 import io.github.kotlinmania.treesitterlanguage.LanguageFn
 import io.github.kotlinmania.treesitterlanguage.LanguageProvider
 import kotlin.test.Test
@@ -185,7 +191,7 @@ class LanguageTest {
         //   "//", "/*", "identifier", "line_comment", "block_comment"
         // State 3 (small): small parse state with valid lookahead symbols `{` and `}`
         val largeStateCount = 3u
-        val stateCount = 4u
+        val stateCount = 8u
         val parseTable = UShortArray(largeStateCount.toInt() * symbolCount.toInt())
 
         fun setLargeEntry(state: Int, symbolName: String, value: UShort) {
@@ -210,8 +216,25 @@ class LanguageTest {
                 2u, // symbolCount = 2
                 idByName.getValue("{"),
                 idByName.getValue("}"),
+                1u,
+                3u,
+                1u,
+                idByName.getValue("end"),
+                1u,
+                3u,
+                1u,
+                idByName.getValue("end"),
+                1u,
+                3u,
+                1u,
+                idByName.getValue("}"),
+                1u,
+                3u,
+                2u,
+                idByName.getValue("end"),
+                idByName.getValue("struct"),
             )
-        val smallParseTableMap = uintArrayOf(0u)
+        val smallParseTableMap = uintArrayOf(0u, 5u, 9u, 13u, 17u)
 
         val fieldNames = listOf("", "body", "name", "type")
 

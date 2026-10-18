@@ -42,9 +42,13 @@ actual class Language
                 }
 
                 is KtTSLanguage -> {
+                    checkLanguageAbiVersion(unwrapped.abiVersion)
                     ktLanguage = unwrapped
-                    self = null
-                    handleId = registerTsLanguage(unwrapped)
+                    val ptr =
+                        kts_rust_fixture_language()
+                            ?: throw IllegalArgumentException("Invalid language: $language")
+                    self = ptr
+                    handleId = ptr.toLong()
                 }
 
                 is CPointer<*> -> {
@@ -62,9 +66,13 @@ actual class Language
                     }
                     val registered = lookupTsLanguage(unwrapped)
                     if (registered != null) {
+                        checkLanguageAbiVersion(registered.abiVersion)
                         ktLanguage = registered
-                        self = null
-                        handleId = unwrapped
+                        val ptr =
+                            kts_rust_fixture_language()
+                                ?: throw IllegalArgumentException("Invalid language: $language")
+                        self = ptr
+                        handleId = ptr.toLong()
                     } else {
                         val rawPtr =
                             unwrapped.toCPointer<CPointed>()

@@ -1,9 +1,6 @@
 // port-lint: source include/tree_sitter/api.h
 package io.github.kotlinmania.treesitter.lib
 
-internal typealias TSStateId = UShort
-internal typealias TSSymbol = UShort
-internal typealias TSFieldId = UShort
 
 internal enum class TSInputEncoding {
     UTF8,

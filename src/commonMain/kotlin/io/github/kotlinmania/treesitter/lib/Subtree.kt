@@ -64,8 +64,8 @@ internal sealed class Subtree {
     class Heap(
         @Suppress("MemberVisibilityCanBePrivate")
         val children: List<Subtree>,
-        var symbol: TSSymbol,
-        val parseState: TSStateId,
+        var symbol: UShort,
+        val parseState: UShort,
         val padding: Length,
         val size: Length,
         val lookaheadBytes: UInt,
@@ -101,8 +101,8 @@ internal sealed class Subtree {
             val dynamicPrecedence: Int,
             val repeatDepth: UShort,
             val productionId: UShort,
-            val firstLeafSymbol: TSSymbol,
-            val firstLeafParseState: TSStateId,
+            val firstLeafSymbol: UShort,
+            val firstLeafParseState: UShort,
         ) : HeapBranch()
 
         class ExternalTerminal(
@@ -115,7 +115,6 @@ internal sealed class Subtree {
     }
 }
 
-internal typealias SubtreeArray = MutableList<Subtree>
 
 internal class SubtreePool internal constructor(
     @Suppress("MemberVisibilityCanBePrivate")
@@ -124,7 +123,7 @@ internal class SubtreePool internal constructor(
     val treeStack: MutableList<Subtree> = mutableListOf(),
 )
 
-internal fun tsSubtreeSymbol(self: Subtree): TSSymbol =
+internal fun tsSubtreeSymbol(self: Subtree): UShort =
     when (self) {
         is Subtree.Inline -> self.symbol.toUShort()
         is Subtree.Heap -> self.symbol
@@ -166,7 +165,7 @@ internal fun tsSubtreeIsKeyword(self: Subtree): Boolean =
         is Subtree.Heap -> self.isKeyword
     }
 
-internal fun tsSubtreeParseState(self: Subtree): TSStateId =
+internal fun tsSubtreeParseState(self: Subtree): UShort =
     when (self) {
         is Subtree.Inline -> self.parseState
         is Subtree.Heap -> self.parseState
@@ -191,7 +190,7 @@ internal fun tsSubtreeSetExtra(self: Subtree, isExtra: Boolean) {
     }
 }
 
-internal fun tsSubtreeLeafSymbol(self: Subtree): TSSymbol =
+internal fun tsSubtreeLeafSymbol(self: Subtree): UShort =
     when (self) {
         is Subtree.Inline -> {
             self.symbol.toUShort()
@@ -214,7 +213,7 @@ internal fun tsSubtreeLeafSymbol(self: Subtree): TSSymbol =
         }
     }
 
-internal fun tsSubtreeLeafParseState(self: Subtree): TSStateId =
+internal fun tsSubtreeLeafParseState(self: Subtree): UShort =
     when (self) {
         is Subtree.Inline -> {
             self.parseState
@@ -396,16 +395,16 @@ internal fun tsExternalScannerStateEq(self: ExternalScannerState, buffer: ByteAr
     return true
 }
 
-internal fun tsSubtreeArrayCopy(self: SubtreeArray, dest: SubtreeArray) {
+internal fun tsSubtreeArrayCopy(self: MutableList<Subtree>, dest: MutableList<Subtree>) {
     dest.clear()
     dest.addAll(self)
 }
 
-internal fun tsSubtreeArrayClear(self: SubtreeArray) {
+internal fun tsSubtreeArrayClear(self: MutableList<Subtree>) {
     self.clear()
 }
 
-internal fun tsSubtreeArrayDelete(self: SubtreeArray) {
+internal fun tsSubtreeArrayDelete(self: MutableList<Subtree>) {
     self.clear()
 }
 
@@ -413,7 +412,7 @@ internal fun tsSubtreeArrayDelete(self: SubtreeArray) {
  * Move every trailing extra subtree off the end of [self] onto [destination], then reverse
  * [destination] so it reads in original order.
  */
-internal fun tsSubtreeArrayRemoveTrailingExtras(self: SubtreeArray, destination: SubtreeArray) {
+internal fun tsSubtreeArrayRemoveTrailingExtras(self: MutableList<Subtree>, destination: MutableList<Subtree>) {
     destination.clear()
     while (self.isNotEmpty()) {
         val last = self.last()
@@ -427,7 +426,7 @@ internal fun tsSubtreeArrayRemoveTrailingExtras(self: SubtreeArray, destination:
     tsSubtreeArrayReverse(destination)
 }
 
-internal fun tsSubtreeArrayReverse(self: SubtreeArray) {
+internal fun tsSubtreeArrayReverse(self: MutableList<Subtree>) {
     val limit = self.size / 2
     for (i in 0 until limit) {
         val reverseIndex = self.size - 1 - i
@@ -460,11 +459,11 @@ internal fun tsSubtreeCanInline(padding: Length, size: Length, lookaheadBytes: U
  * dispatch in lib/src/subtree.c.
  */
 internal fun tsSubtreeNewLeaf(
-    symbol: TSSymbol,
+    symbol: UShort,
     padding: Length,
     size: Length,
     lookaheadBytes: UInt,
-    parseState: TSStateId,
+    parseState: UShort,
     hasExternalTokens: Boolean,
     dependsOnColumn: Boolean,
     isKeyword: Boolean,
@@ -535,7 +534,7 @@ internal fun tsSubtreeNewLeaf(
  * symbol metadata. Inline subtrees enforce the symbol <= UByte.MAX_VALUE constraint that the C
  * runtime guards with `ts_assert`.
  */
-internal fun tsSubtreeSetSymbol(self: Subtree, symbol: TSSymbol, language: TSLanguage): Subtree {
+internal fun tsSubtreeSetSymbol(self: Subtree, symbol: UShort, language: TSLanguage): Subtree {
     val metadata = tsLanguageSymbolMetadata(language, symbol)
     return when (self) {
         is Subtree.Inline -> {
@@ -577,7 +576,7 @@ internal fun tsSubtreeNewError(
     padding: Length,
     size: Length,
     bytesScanned: UInt,
-    parseState: TSStateId,
+    parseState: UShort,
     language: TSLanguage,
 ): Subtree {
     val base =
@@ -615,8 +614,8 @@ internal fun tsSubtreeNewError(
  */
 private fun Subtree.Heap.copy(
     children: List<Subtree> = this.children,
-    symbol: TSSymbol = this.symbol,
-    parseState: TSStateId = this.parseState,
+    symbol: UShort = this.symbol,
+    parseState: UShort = this.parseState,
     padding: Length = this.padding,
     size: Length = this.size,
     lookaheadBytes: UInt = this.lookaheadBytes,
@@ -698,7 +697,7 @@ internal fun tsSubtreeCompare(left: Subtree, right: Subtree): Int {
  * sequence with a small immutable rebuild for the inline variant.
  */
 internal fun tsSubtreeNewMissingLeaf(
-    symbol: TSSymbol,
+    symbol: UShort,
     padding: Length,
     lookaheadBytes: UInt,
     language: TSLanguage,

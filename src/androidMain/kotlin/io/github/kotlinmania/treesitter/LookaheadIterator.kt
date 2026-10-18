@@ -140,12 +140,14 @@ actual class LookaheadIterator
         private external fun nativeLanguage(): Language
 
         @FastNative
+        @JvmName("nativeCurrentSymbol")
         private external fun nativeCurrentSymbol(): UShort
 
         @FastNative
         private external fun nativeCurrentSymbolName(): String
 
         @FastNative
+        @JvmName("nativeReset")
         private external fun nativeReset(state: UShort, language: Language?): Boolean
 
         @FastNative

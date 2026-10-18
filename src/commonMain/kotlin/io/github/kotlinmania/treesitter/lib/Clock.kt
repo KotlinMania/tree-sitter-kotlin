@@ -10,21 +10,17 @@ import kotlin.time.TimeSource
  * A duration used by the parser to bound elapsed work. The C runtime expressed this as a
  * `uint64_t` count of platform-specific ticks; here it is a [Duration] from kotlin.time.
  */
-internal typealias TsDuration = Duration
+internal fun durationFromMicros(micros: ULong): Duration = micros.toLong().microseconds
 
-internal typealias TsClock = ComparableTimeMark?
+internal fun durationToMicros(self: Duration): ULong = self.inWholeMicroseconds.toULong()
 
-internal fun durationFromMicros(micros: ULong): TsDuration = micros.toLong().microseconds
+internal fun clockNull(): ComparableTimeMark? = null
 
-internal fun durationToMicros(self: TsDuration): ULong = self.inWholeMicroseconds.toULong()
+internal fun clockNow(): ComparableTimeMark? = TimeSource.Monotonic.markNow()
 
-internal fun clockNull(): TsClock = null
+internal fun clockAfter(base: ComparableTimeMark?, duration: Duration): ComparableTimeMark? = base?.plus(duration)
 
-internal fun clockNow(): TsClock = TimeSource.Monotonic.markNow()
+internal fun clockIsNull(self: ComparableTimeMark?): Boolean = self == null
 
-internal fun clockAfter(base: TsClock, duration: TsDuration): TsClock = base?.plus(duration)
-
-internal fun clockIsNull(self: TsClock): Boolean = self == null
-
-internal fun clockIsGt(self: TsClock, other: TsClock): Boolean =
+internal fun clockIsGt(self: ComparableTimeMark?, other: ComparableTimeMark?): Boolean =
     self != null && other != null && self > other
