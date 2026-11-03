@@ -6,9 +6,6 @@ build/
 *.jar
 *.war
 *.ear
-*.o
-*.a
-*.tmp
 
 # Keep the Gradle wrapper jar checked in so CI can run `./gradlew`.
 !gradle/wrapper/gradle-wrapper.jar
@@ -25,6 +22,7 @@ tmp/
 # AST distance reports and binaries
 port_status_report.md
 high_priority_ports.md
+NEXT_ACTIONS.md
 port_lint_proposed_changes.md
 ast_distance_*.txt
 .cache/
@@ -42,7 +40,6 @@ tools/
 # JVM heap dumps
 *.hprof
 java_pid*.hprof
-hs_err_*.log
 
 # macOS Finder metadata
 .DS_Store
@@ -57,7 +54,7 @@ local.properties
 
 # Swift Package Manager / Xcode workspace state.
 #
-# `swift-test-harness/` is a real SPM package that exercises the Kotlin
+# `src/swift/swift-test-harness/` is a real SPM package that exercises the Kotlin
 # Swift Export pipeline against the artifacts produced by
 # `embedSwiftExportForXcode`. Its `Package.swift`, `Tests/`, and
 # per-package `.gitignore` (which ignores its own `.build/`) are all
@@ -73,8 +70,28 @@ DerivedData/
 *.xcuserstate
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
-deep_symbol_inventory.txt
+local.properties
 
-# npm install output for node-treesitter
-native/node-treesitter/build/
-native/node-treesitter/node_modules/
+# npm install output; JS dependencies come from yarn via the Kotlin Gradle plugin
+node_modules/
+package-lock.json
+!src/js/node-ffi/dist/package-lock.json
+
+# Java build helpers are source; buildSrc/build remains generated output.
+!buildSrc/
+!buildSrc/src/
+!buildSrc/src/**
+!buildSrc/build.gradle.kts
+!buildSrc/settings.gradle.kts
+
+# Template build layout and generated files.
+deep_symbol_inventory.txt
+direct-translation/
+*.log
+*.stderr
+*.o.tmp
+**/src/native/interop/cinterop/*.a
+**/.android-sdk/
+**/.build/
+!**/native/node-*/package-lock.json
+!**/src/js/node-*/**/package-lock.json

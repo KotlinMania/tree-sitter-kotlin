@@ -8,7 +8,7 @@ Based on AST analysis, here are the concrete next steps.
 - **Function parity:** 34/36 matched (target 40) — 94.4%
 - **Class/type parity:** 5/42 matched (target 26) — 11.9%
 - **Combined symbol parity:** 39/78 matched (target 66) — 50.0%
-- **Average inline-code cosine:** 0.08 (function body across 3 matched files)
+- **Average inline-code cosine:** 0.07 (function body across 3 matched files)
 - **Average documentation cosine:** 0.00 (doc text across 3 matched files)
 - **Cheat-zeroed Files:** 0
 - **Critical Issues:** 3 files with <0.60 function similarity
@@ -43,9 +43,9 @@ Every matched file is listed below with function and type symbol parity.
 ### 2. ffi
 
 - **Target:** `ffi.Ffi`
-- **Similarity:** 0.16
+- **Similarity:** 0.13
 - **Dependents:** 0
-- **Priority Score:** 2008.4
+- **Priority Score:** 2008.7
 - **Functions:** 20/20 matched
 - **Missing functions:** _none_
 - **Types:** 0/0 matched (target 20)
