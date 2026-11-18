@@ -58,19 +58,74 @@ public final class TreeSitterFixtureBuilder {
     private static String response(List<String> arguments) {
         return arguments.stream().map(value -> { require(!value.contains("\n") && !value.contains("\r"), "Invalid compiler argument"); return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""; }).collect(java.util.stream.Collectors.joining("\n", "", "\n"));
     }
+    private static Path resolveAndroidNdk(Path root, Path konanDataDir) throws Exception {
+        if (windows()) throw new IllegalStateException("Build Android JNI payloads on macOS or Linux host");
+        boolean mac = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("mac");
+        String depName = "target-toolchain-2-" + (mac ? "osx" : "linux") + "-android_ndk";
+        Path compilerDir = konanDataDir.resolve("dependencies").resolve(depName);
+        Path probe = compilerDir.resolve("bin/aarch64-linux-android24-clang");
+        if (Files.isRegularFile(probe)) return compilerDir;
+        Path localDeps = root.resolve("build/native-wrapper-dependencies");
+        Path localDir = localDeps.resolve(depName);
+        if (Files.isRegularFile(localDir.resolve("bin/aarch64-linux-android24-clang"))) return localDir;
+        Path cacheDir = localDeps.resolve("cache"); Files.createDirectories(cacheDir);
+        Path archive = cacheDir.resolve(depName + ".tar.gz");
+        String url = "https://download.jetbrains.com/kotlin/native/" + depName + ".tar.gz";
+        if (!Files.isRegularFile(archive) || Files.size(archive) == 0L) {
+            execute(root, "download-" + depName, List.of("curl", "-sSL", url, "-o", archive.toString()));
+        }
+        Files.createDirectories(localDeps);
+        execute(root, "extract-" + depName, List.of("tar", "-xzf", archive.toString(), "-C", localDeps.toString()));
+        require(Files.isRegularFile(localDir.resolve("bin/aarch64-linux-android24-clang")), "Missing Android NDK compiler under " + localDir);
+        return localDir;
+    }
+
     public static int run(String... args) throws Exception {
         Map<String, String> options = new LinkedHashMap<>();
         for (int i = 0; i < args.length; i++) { require(args[i].startsWith("--") && i + 1 < args.length, "Missing argument"); require(options.put(args[i].substring(2), args[++i]) == null, "Duplicate argument"); }
-        require(List.of("jni", "native").contains(options.get("mode")), "Use --mode jni or native");
-        boolean jni = options.get("mode").equals("jni");
-        require(options.keySet().equals(jni ? java.util.Set.of("root", "output", "mode", "java-home") : java.util.Set.of("root", "output", "mode", "konan-home", "target")), "Wrong tree-sitter arguments");
+        String mode = options.get("mode");
+        require(List.of("jni", "native", "android-jni").contains(mode), "Use --mode jni, native, or android-jni");
+        java.util.Set<String> expectedKeys =
+            mode.equals("jni") ? java.util.Set.of("root", "output", "mode", "java-home")
+            : mode.equals("android-jni") ? java.util.Set.of("root", "output", "mode", "konan-data-dir")
+            : java.util.Set.of("root", "output", "mode", "konan-home", "target");
+        require(options.keySet().equals(expectedKeys), "Wrong tree-sitter arguments");
         Path root = Path.of(options.get("root")).toRealPath(), output = Path.of(options.get("output")).toAbsolutePath().normalize();
         Files.createDirectories(root.resolve("build")); require(root.resolve("build").toRealPath().startsWith(root), "Project build folder escapes its repository");
-        require(output.startsWith(root.resolve("build")), "Output must stay inside the project's build folder"); Files.createDirectories(output.getParent());
+        require(output.startsWith(root.resolve("build")), "Output must stay inside the project's build folder");
+        if (mode.equals("android-jni")) {
+            Files.createDirectories(output);
+            require(output.toRealPath().startsWith(root.resolve("build").toRealPath()) && !Files.isSymbolicLink(output), "Output symlink escapes project build folder");
+            Path ndk = resolveAndroidNdk(root, Path.of(options.get("konan-data-dir")));
+            Path sysroot = ndk.resolve("sysroot");
+            Path vendor = root.resolve("tree-sitter/lib"), jni = root.resolve("src/jni");
+            List<Path> sources = new ArrayList<>(List.of(vendor.resolve("src/lib.c"), root.resolve("src/native/interop/cinterop/treesitter_ext.c")));
+            try (var files = Files.list(jni)) { sources.addAll(files.filter(path -> path.toString().endsWith(".c")).sorted().toList()); }
+            require(sources.size() > 2, "No tree-sitter JNI sources");
+            for (Path source : sources) input(source);
+            String[][] abis = new String[][] {{"arm64-v8a", "aarch64-linux-android"}, {"x86_64", "x86_64-linux-android"}};
+            for (String[] pair : abis) {
+                String abi = pair[0], triple = pair[1];
+                Path compiler = ndk.resolve("bin/" + triple + "24-clang");
+                input(compiler);
+                Path abiDir = output.resolve(abi); Files.createDirectories(abiDir);
+                Path soOutput = abiDir.resolve("libktreesitter.so"); Files.deleteIfExists(soOutput);
+                List<String> cmd = new ArrayList<>(List.of(compiler.toString(), "--sysroot=" + sysroot, "-shared", "-fPIC", "-O2", "-std=c11", "-Wl,-z,max-page-size=16384"));
+                if (abi.equals("arm64-v8a")) cmd.add("-mbranch-protection=standard");
+                cmd.addAll(List.of("-I" + jni, "-I" + vendor.resolve("include"), "-I" + vendor.resolve("src"), "-DTREE_SITTER_HIDE_SYMBOLS", "-D_DEFAULT_SOURCE", "-D_POSIX_C_SOURCE=200112L"));
+                for (Path source : sources) cmd.add(source.toString());
+                cmd.addAll(List.of("-o", soOutput.toString()));
+                execute(root, "android-jni-" + abi, cmd);
+                require(Files.isRegularFile(soOutput) && Files.size(soOutput) > 0, "Compiler produced no tree-sitter Android JNI artifact: " + soOutput);
+                System.out.println("Built " + soOutput);
+            }
+            return 0;
+        }
+        Files.createDirectories(output.getParent());
         require(output.getParent().toRealPath().startsWith(root.resolve("build").toRealPath()) && !Files.isSymbolicLink(output), "Output symlink escapes project build folder");
         // A failed compiler must not leave an old artifact that appears usable.
         Files.deleteIfExists(output);
-        if (jni) execute(root, "jni", jniCommand(root, Path.of(options.get("java-home")), output));
+        if (mode.equals("jni")) execute(root, "jni", jniCommand(root, Path.of(options.get("java-home")), output));
         else {
             String target = options.get("target"); require(target.matches("[a-z0-9_]+"), "Invalid Kotlin/Native target");
             Path home = Path.of(options.get("konan-home")), runKonan = home.resolve("bin/" + (windows() ? "run_konan.bat" : "run_konan")); input(runKonan);

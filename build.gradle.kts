@@ -2260,6 +2260,34 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
         systemProperty("java.library.path", if (existing.isNullOrBlank()) nativesPath else nativesPath + File.pathSeparator + existing)
     }
 }
+if (androidTargetEnabled) {
+    val compileTreesitterAndroidJni =
+        tasks.register<FfiBuildSupport.AndroidJniCompileTask>("compileTreesitterAndroidJni") {
+            group = "build"
+            description = "Compiles the mandatory tree-sitter JNI library for Android device ABIs"
+            inputs.dir("src/jni")
+            inputs.dir(treesitterVendorDir.resolve("lib/src"))
+            inputs.dir(treesitterVendorDir.resolve("lib/include"))
+            inputs.file("src/native/interop/cinterop/treesitter_ext.c")
+            nativeDirectory.set(layout.buildDirectory.dir("treesitter-android-jni"))
+            doLast {
+                BuildToolTask.invoke(
+                    "io.github.kotlinmania.build.TreeSitterFixtureBuilder",
+                    "--mode",
+                    "android-jni",
+                    "--root",
+                    projectDir.absolutePath,
+                    "--output",
+                    nativeDirectory.get().asFile.absolutePath,
+                    "--konan-data-dir",
+                    projectKonanDataDirectory.get().absolutePath,
+                )
+            }
+        }
+    extensions.getByType<KotlinMultiplatformAndroidComponentsExtension>().onVariants { variant ->
+        requireNotNull(variant.sources.jniLibs).addGeneratedSourceDirectory(compileTreesitterAndroidJni) { it.nativeDirectory }
+    }
+}
 // kotlinmania:project-specific:treesitter-jni-fixture:v1 end
 
 // kotlinmania:project-specific:treesitter-native-archive:v1 begin
