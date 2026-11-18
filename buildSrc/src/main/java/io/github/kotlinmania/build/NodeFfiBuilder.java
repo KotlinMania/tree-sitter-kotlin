@@ -426,7 +426,7 @@ public final class NodeFfiBuilder {
         List<String> defines = new ArrayList<>(List.of("NODE_GYP_MODULE_NAME=" + name, "BUILDING_NODE_EXTENSION",
                 "USING_UV_SHARED=1", "USING_V8_SHARED=1", "V8_DEPRECATION_WARNINGS=1", "_LARGEFILE_SOURCE",
                 "_FILE_OFFSET_BITS=64", "__STDC_FORMAT_MACROS", isDebug ? "DEBUG" : "NDEBUG"));
-        if (isDebug) defines.add("_DEBUG");
+        if (isDebug && !windows) defines.add("_DEBUG");
         defines.addAll(option(target, "defines"));
         defines.removeAll(strings(target.getOrDefault("defines!", List.of()), "defines!"));
         String toolset = String.valueOf(target.getOrDefault("msbuild_toolset", ""));
