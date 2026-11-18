@@ -6,7 +6,7 @@
     "lang": "rust"
   },
   "target": {
-    "path": "src/commonMain/kotlin/io/github/kotlinmania/treesitter",
+    "path": "src/common/commonMain/kotlin/io/github/kotlinmania/treesitter",
     "lang": "kotlin"
   },
   "checks": {
