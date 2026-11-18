@@ -345,15 +345,27 @@ public final class NodeFfiBuilder {
             System.err.println("N-API build failed: " + receipt.get("error"));
             return 1;
         } finally {
-            try {
-                if (temporary != null) {
-                    deleteTree(temporary);
-                }
-                if (report != null) {
+            IOException failure = null;
+            if (report != null) {
+                try {
                     Json.write(report, receipt);
+                } catch (IOException exception) {
+                    failure = exception;
                 }
-            } catch (IOException exception) {
-                throw new IllegalStateException("Could not clean or report the project-local N-API build", exception);
+            }
+            if (temporary != null) {
+                try {
+                    deleteTree(temporary);
+                } catch (IOException exception) {
+                    if (failure == null) {
+                        failure = exception;
+                    } else {
+                        failure.addSuppressed(exception);
+                    }
+                }
+            }
+            if (failure != null) {
+                throw new IllegalStateException("Could not clean or report the project-local N-API build", failure);
             }
         }
     }
@@ -930,7 +942,11 @@ public final class NodeFfiBuilder {
             if (!extraEnv.isEmpty()) {
                 builder.environment().putAll(extraEnv);
             }
-            builder.environment().putAll(Map.of("TMPDIR", temporary.toString(), "TMP", temporary.toString(), "TEMP", temporary.toString()));
+            builder.environment().putAll(Map.of(
+                    "TMPDIR", temporary.toString(),
+                    "TMP", temporary.toString(),
+                    "TEMP", temporary.toString(),
+                    "VSCMD_SKIP_SENDTELEMETRY", "1"));
             process = builder.start();
             process.getOutputStream().close();
             boolean finished = process.waitFor(5, TimeUnit.MINUTES);
@@ -950,7 +966,11 @@ public final class NodeFfiBuilder {
                 process.descendants().forEach(ProcessHandle::destroyForcibly);
                 process.destroyForcibly();
             }
-            Files.deleteIfExists(log);
+            try {
+                deleteScratchPath(log);
+            } catch (IOException ignored) {
+                log.toFile().deleteOnExit();
+            }
         }
     }
 
@@ -991,7 +1011,7 @@ public final class NodeFfiBuilder {
         Path script = Files.createTempFile(temporary, "msvc-env-", ".bat");
         try {
             Files.writeString(script,
-                    "@echo off\r\ncall \"%~1\" %~2 >nul\r\nif errorlevel 1 exit /b %errorlevel%\r\nset\r\n",
+                    "@echo off\r\nset \"VSCMD_SKIP_SENDTELEMETRY=1\"\r\ncall \"%~1\" %~2 >nul 2>&1\r\nif errorlevel 1 exit /b %errorlevel%\r\nset\r\n",
                     StandardCharsets.UTF_8);
             String envDump = execute(
                     List.of("cmd.exe", "/d", "/c", script.toString(), vcvarsall.toString(), arch.equals("arm64") ? "arm64" : "x64"),
@@ -1005,7 +1025,11 @@ public final class NodeFfiBuilder {
             }
             return env;
         } finally {
-            Files.deleteIfExists(script);
+            try {
+                deleteScratchPath(script);
+            } catch (IOException ignored) {
+                script.toFile().deleteOnExit();
+            }
         }
     }
 
@@ -1189,9 +1213,49 @@ public final class NodeFfiBuilder {
         }
     }
 
+    private static boolean isWindowsHost() {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+    }
+
+    private static void deleteScratchPath(Path path) throws IOException {
+        if (path == null || !Files.exists(path)) {
+            return;
+        }
+        int attempts = isWindowsHost() ? 5 : 1;
+        IOException lastError = null;
+        for (int attempt = 0; attempt < attempts; attempt++) {
+            try {
+                Files.deleteIfExists(path);
+                return;
+            } catch (IOException exception) {
+                lastError = exception;
+                if (attempt + 1 < attempts) {
+                    try {
+                        Thread.sleep(50L);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }
+        if (isWindowsHost()) {
+            path.toFile().deleteOnExit();
+            return;
+        }
+        if (lastError != null) {
+            throw lastError;
+        }
+    }
+
     private static void deleteTree(Path directory) throws IOException {
+        if (!Files.exists(directory)) {
+            return;
+        }
         try (var entries = Files.walk(directory)) {
-            for (Path entry : entries.sorted(Comparator.reverseOrder()).toList()) Files.delete(entry);
+            for (Path entry : entries.sorted(Comparator.reverseOrder()).toList()) {
+                deleteScratchPath(entry);
+            }
         }
     }
 }
