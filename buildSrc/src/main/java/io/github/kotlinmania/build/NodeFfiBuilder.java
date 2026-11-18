@@ -1,5 +1,6 @@
 package io.github.kotlinmania.build;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -420,8 +421,15 @@ public final class NodeFfiBuilder {
         if (!toolset.isEmpty() && !toolset.equals("ClangCL")) {
             throw new IllegalArgumentException("Unsupported Windows toolset: " + toolset);
         }
+        Map<String, String> msvcEnv = windows && toolset.isEmpty()
+                ? resolveWindowsMsvcEnvironment(arch, addon, temporary)
+                : Map.of();
         String cc = options.cc() != null ? options.cc() : environmentCompiler("CC", windows ? (toolset.isEmpty() ? "cl.exe" : "clang-cl.exe") : "cc");
         String cxx = options.cxx() != null ? options.cxx() : environmentCompiler("CXX", windows ? (toolset.isEmpty() ? "cl.exe" : "clang-cl.exe") : "c++");
+        if (windows) {
+            cc = resolveWindowsExecutable(cc, msvcEnv);
+            cxx = resolveWindowsExecutable(cxx, msvcEnv);
+        }
         List<Path> objects = new ArrayList<>();
         List<Path> resolvedSources = new ArrayList<>();
         for (String source : option(target, "sources")) {
@@ -501,7 +509,7 @@ public final class NodeFfiBuilder {
                 if (asm) {
                     command.addAll(List.of("/nologo", "/c"));
                 } else {
-                    command.addAll(List.of("/nologo", "/c", isDebug ? "/Od" : "/O2", "/MD", "/W3", cpp ? "/TP" : "/TC"));
+                    command.addAll(List.of("/nologo", "/c", "/utf-8", isDebug ? "/Od" : "/O2", "/MD", "/W3", cpp ? "/TP" : "/TC"));
                 }
                 if (isDebug) command.add("/Z7");
                 if (cpp) {
@@ -512,6 +520,8 @@ public final class NodeFfiBuilder {
                                 .get("VCCLCompilerTool"), "VCCLCompilerTool").get("ExceptionHandling"));
                     }
                     command.add(exceptions.equals("2") ? "/EHa" : exceptions.equals("1") ? "/EHsc" : "/EHs-c-");
+                } else if (!asm) {
+                    command.add("/std:c11");
                 }
                 for (String include : includes) command.add("/I" + include);
                 for (String define : defines) command.add("/D" + literal(define));
@@ -550,12 +560,13 @@ public final class NodeFfiBuilder {
                 for (String define : defines) command.add("-D" + literal(define));
                 command.addAll(List.of("-c", input.toString(), "-o", object.toString()));
             }
-            execute(command, addon, temporary);
+            execute(command, addon, temporary, msvcEnv);
             objects.add(object);
         }
         List<String> link = new ArrayList<>();
         if (windows) {
-            link.add(options.linker() == null ? (toolset.isEmpty() ? "link.exe" : "lld-link.exe") : options.linker());
+            String linkerExe = options.linker() == null ? (toolset.isEmpty() ? "link.exe" : "lld-link.exe") : options.linker();
+            link.add(resolveWindowsExecutable(linkerExe, msvcEnv));
             link.addAll(List.of("/NOLOGO", "/DLL", "/MACHINE:" + (arch.equals("arm64") ? "ARM64" : "X64"), "/OUT:" + output));
             if (isDebug) link.add("/DEBUG");
             objects.forEach(object -> link.add(object.toString()));
@@ -588,7 +599,7 @@ public final class NodeFfiBuilder {
                 link.add(literal(library));
             }
         }
-        execute(link, addon, temporary);
+        execute(link, addon, temporary, msvcEnv);
         if (!Files.isRegularFile(output) || Files.size(output) == 0) {
             throw new IOException("Native compiler did not produce " + output);
         }
@@ -907,10 +918,18 @@ public final class NodeFfiBuilder {
     ///   nonzero
     /// @throws InterruptedException if waiting is interrupted
     private static String execute(List<String> command, Path directory, Path temporary) throws IOException, InterruptedException {
+        return execute(command, directory, temporary, Map.of());
+    }
+
+    private static String execute(List<String> command, Path directory, Path temporary, Map<String, String> extraEnv)
+            throws IOException, InterruptedException {
         Path log = Files.createTempFile(temporary, "native-command-", ".log");
         Process process = null;
         try {
             ProcessBuilder builder = new ProcessBuilder(command).directory(directory.toFile()).redirectErrorStream(true).redirectOutput(log.toFile());
+            if (!extraEnv.isEmpty()) {
+                builder.environment().putAll(extraEnv);
+            }
             builder.environment().putAll(Map.of("TMPDIR", temporary.toString(), "TMP", temporary.toString(), "TEMP", temporary.toString()));
             process = builder.start();
             process.getOutputStream().close();
@@ -933,6 +952,100 @@ public final class NodeFfiBuilder {
             }
             Files.deleteIfExists(log);
         }
+    }
+
+    private static Map<String, String> resolveWindowsMsvcEnvironment(String arch, Path directory, Path temporary)
+            throws IOException, InterruptedException {
+        String existingInclude = System.getenv("INCLUDE");
+        if (findOnPath("cl.exe", System.getenv("PATH")) != null && existingInclude != null && !existingInclude.isBlank()) {
+            return Map.of();
+        }
+        Path vswhere = null;
+        List<String> roots = new ArrayList<>();
+        String pf86 = System.getenv("ProgramFiles(x86)");
+        String pf = System.getenv("ProgramFiles");
+        if (pf86 != null && !pf86.isBlank()) roots.add(pf86);
+        if (pf != null && !pf.isBlank()) roots.add(pf);
+        roots.add("C:\\Program Files (x86)");
+        roots.add("C:\\Program Files");
+        for (String root : roots) {
+            Path candidate = Path.of(root, "Microsoft Visual Studio", "Installer", "vswhere.exe");
+            if (Files.isRegularFile(candidate)) {
+                vswhere = candidate;
+                break;
+            }
+        }
+        if (vswhere == null) {
+            return Map.of();
+        }
+        String installPath = execute(
+                List.of(vswhere.toString(), "-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath"),
+                directory, temporary, Map.of()).strip();
+        if (installPath.isEmpty()) {
+            return Map.of();
+        }
+        Path vcvarsall = Path.of(installPath, "VC", "Auxiliary", "Build", "vcvarsall.bat");
+        if (!Files.isRegularFile(vcvarsall)) {
+            return Map.of();
+        }
+        Path script = Files.createTempFile(temporary, "msvc-env-", ".bat");
+        try {
+            Files.writeString(script,
+                    "@echo off\r\ncall \"%~1\" %~2 >nul\r\nif errorlevel 1 exit /b %errorlevel%\r\nset\r\n",
+                    StandardCharsets.UTF_8);
+            String envDump = execute(
+                    List.of("cmd.exe", "/d", "/c", script.toString(), vcvarsall.toString(), arch.equals("arm64") ? "arm64" : "x64"),
+                    directory, temporary, Map.of());
+            Map<String, String> env = new LinkedHashMap<>();
+            for (String line : envDump.split("\\R")) {
+                int eq = line.indexOf('=');
+                if (eq > 0) {
+                    env.put(line.substring(0, eq), line.substring(eq + 1));
+                }
+            }
+            return env;
+        } finally {
+            Files.deleteIfExists(script);
+        }
+    }
+
+    private static String resolveWindowsExecutable(String command, Map<String, String> extraEnv) {
+        if (command.contains("/") || command.contains("\\")) {
+            return command;
+        }
+        String pathValue = null;
+        for (Map.Entry<String, String> entry : extraEnv.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase("PATH")) {
+                pathValue = entry.getValue();
+                break;
+            }
+        }
+        if (pathValue == null || pathValue.isBlank()) {
+            pathValue = System.getenv("PATH");
+        }
+        Path found = findOnPath(command, pathValue);
+        return found != null ? found.toAbsolutePath().toString() : command;
+    }
+
+    private static Path findOnPath(String exeName, String pathValue) {
+        if (pathValue == null || pathValue.isBlank()) {
+            return null;
+        }
+        for (String rawDir : pathValue.split(Pattern.quote(File.pathSeparator))) {
+            String dir = rawDir.replace("\"", "").trim();
+            if (dir.isEmpty()) {
+                continue;
+            }
+            try {
+                Path candidate = Path.of(dir, exeName);
+                if (Files.isRegularFile(candidate)) {
+                    return candidate;
+                }
+            } catch (RuntimeException ignored) {
+                // Skip malformed PATH entries on host environment.
+            }
+        }
+        return null;
     }
 
     /// Parses named options without touching paths or launching tools.
